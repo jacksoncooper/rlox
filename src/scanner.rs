@@ -225,8 +225,10 @@ mod test {
 // the book implements the scanner, with the significant caveat that Java
 // strings are encoded in UTF-16 so you're less likely to run into Characters
 // that span multiple Code Points unless you're dealing with surrogates.
-// Because our grammar is a subset of Unicode, i.e. ASCII, characters made of
-// multiple USVs will cause problems if they follow keywords.
+// Even though our grammar is a subset of Unicode, i.e. ASCII, characters made
+// of multiple USVs will not cause problems if they follow keywords due to the
+// scanner's maximal munch policy. For example: elsé (U+0065 followed by
+// U+0301) is one identifier, not "else" followed by an acute accent (U+0301).
 //
 // We should really be working with grapheme clusters but I'd like to only use
 // the standard library for this project. From the std::string::String
