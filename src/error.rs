@@ -6,7 +6,7 @@ pub fn error(line: usize, message: &str) {
 }
 
 pub fn report(line: usize, location: &str, message: &str) {
-    println!("[line {}] error{}: {}", line, location, message);
+    println!("[line {}] Error{}: {}", line, location, message);
 }
 
 pub fn fatal<T, E: error::Error>(result: Result<T, E>, exit_code: i32) -> T {

@@ -4,6 +4,7 @@ use std::io::{self, Write};
 use std::process;
 
 use crate::error;
+use crate::scanner::Scanner;
 
 // Exit codes from FreeBSD's 'sysexits.h' header: https://bit.ly/36JtSK0
 
@@ -51,4 +52,9 @@ fn run_prompt() {
 }
 
 fn run(source: &str) {
+    let mut scanner = Scanner::new(source);
+    match scanner.scan_tokens() {
+        Some(tokens) => for token in tokens { println!("{:?}", token); },
+        None => (),
+    }
 }

@@ -2,7 +2,7 @@ use crate::error;
 use crate::token::Token;
 use crate::token_type::TokenType as TT;
 
-struct Scanner {
+pub struct Scanner {
     source: Vec<char>,
     tokens: Vec<Token>,
     start: usize,
@@ -52,20 +52,21 @@ impl Scanner {
             '+' => self.add_token(TT::Plus),
             ';' => self.add_token(TT::Semicolon),
             '*' => self.add_token(TT::Star),
+
             '!' => self.add_token_if('=', TT::BangEqual, TT::Bang),
             '=' => self.add_token_if('=', TT::EqualEqual, TT::Equal),
             '<' => self.add_token_if('=', TT::LessEqual, TT::Less),
             '>' => self.add_token_if('=', TT::GreaterEqual, TT::Greater),
-            '/' =>
-                if self.advance_if('/') {
-                    while self.peek() != '\n' && !self.is_at_end() {
-                        self.advance();
-                    }
-                } else {
-                    self.add_token(TT::Slash);
-                },
+
+            '/' => self.slash(),
+            '"' => self.string(),
+
             ' ' | '\t' => (), '\n' => self.line += 1,
-             _  => {
+
+            digit if digit.is_ascii_digit() => self.number(),
+            character if character.is_alphabetic() => self.identifier(),
+
+            _  => {
                 // TODO: Report the column. Grapheme Clusters will complicate.
                 error::error(self.line, "Unexpected character.");
                 self.had_error = true;
@@ -80,6 +81,11 @@ impl Scanner {
     fn peek(&self) -> char {
         if self.is_at_end() { return '\0'; }
         self.source[self.current]
+    }
+
+    fn peek_next(&self) -> char {
+        if self.current + 1 >= self.source.len() { return '\0'; }
+        return self.source[self.current + 1];
     }
 
     fn advance(&mut self) -> char {
@@ -97,9 +103,7 @@ impl Scanner {
     }
 
     fn add_token(&mut self, token_type: TT) {
-        // Convert from a list of Unicode Scalar Values to a UTF-8 string.
-        let substring: &[char] = &self.source[self.start..self.current];
-        let lexeme: String = substring.iter().collect();
+        let lexeme = self.collect_lexeme(self.start, self.current);
         let new_token = Token::new(token_type, lexeme, self.line);
         self.tokens.push(new_token);
     }
@@ -111,11 +115,101 @@ impl Scanner {
             self.add_token(failure);
         }
     }
+
+    fn slash(&mut self) {
+        if self.advance_if('/') {
+            while self.peek() != '\n' && !self.is_at_end() {
+                self.advance();
+            }
+        } else {
+            self.add_token(TT::Slash);
+        }
+    }
+
+    fn string(&mut self) {
+        while self.peek() != '"' && !self.is_at_end() {
+            if self.peek() == '\n' { self.line += 1; }
+            self.advance();
+        }
+
+        if self.is_at_end() {
+            error::error(self.line, "Unterminated string.");
+            self.had_error = true;
+            return;
+        }
+
+        self.advance();
+
+        let string = self.collect_lexeme(self.start + 1, self.current - 1);
+        self.add_token(TT::String(string));
+    }
+
+    fn number(&mut self) {
+        while self.peek().is_ascii_digit() { self.advance(); }
+       
+        if self.peek() == '.' && self.peek_next().is_ascii_digit() {
+            self.advance();
+        }
+        
+        while self.peek().is_ascii_digit() { self.advance(); }
+
+        let lexeme = self.collect_lexeme(self.start, self.current);
+        let maybe_number: Result<f64, _> = lexeme.parse();
+        
+        match maybe_number {
+            Ok(number) => self.add_token(TT::Number(number)),
+            Err(_) => {
+                error::error(self.line, "Number cannot be represented with 64 bits.");
+                self.had_error = true;
+            }
+        }
+    }
+
+    fn identifier(&mut self) {
+        while self.peek().is_alphanumeric() || self.peek() == '_' {
+            self.advance();
+        }
+
+        let identifier = self.collect_lexeme(self.start, self.current);
+
+        let token = match identifier.as_str() {
+            "and" => TT::And,
+            "class"  => TT::Class,
+            "else"   => TT::Else,
+            "false"  => TT::False,
+            "for"    => TT::For,
+            "fun"    => TT::Fun,
+            "if"     => TT::If,
+            "nil"    => TT::Nil,
+            "or"     => TT::Or,
+            "print"  => TT::Print,
+            "return" => TT::Return,
+            "super"  => TT::Super,
+            "this"   => TT::This,
+            "true"   => TT::True,
+            "var"    => TT::Var,
+            "while"  => TT::While,
+            _        => TT::Identifier(identifier)
+        };
+
+        self.add_token(token);
+    }
+
+    fn collect_lexeme(&self, start: usize, end: usize) -> String {
+        // Convert from a list of Unicode Scalar Values to a UTF-8 string.
+        let substring: &[char] = &self.source[start..end];
+        let lexeme: String = substring.iter().collect();
+        lexeme
+    }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn tests_tk() {
+    }
 }
 
 // [1]
