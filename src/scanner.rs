@@ -203,15 +203,6 @@ impl Scanner {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn tests_tk() {
-    }
-}
-
 // [1]
 
 // Collecting into Vec<char> is not idiomatic and is space inefficient, because
