@@ -203,6 +203,61 @@ impl Scanner {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn consume_and_peek() {
+        let mut scanner = Scanner::new("eggs");
+
+        // Start state is correct.
+
+        assert_eq!(scanner.start, 0);
+        assert_eq!(scanner.current, 0);
+        assert!(!scanner.is_at_end());
+
+        assert_eq!(scanner.peek(), 'e');
+        assert_eq!(scanner.peek_next(), 'g');
+
+        // Peeking does not affect state.
+
+        assert_eq!(scanner.start, 0);
+        assert_eq!(scanner.current, 0);
+        assert!(!scanner.is_at_end());
+
+        // Consume and stop at second to last character.
+
+        assert_eq!(scanner.advance(), 'e');
+        assert_eq!(scanner.advance(), 'g');
+
+        assert_eq!(scanner.peek(), 'g');
+        assert_eq!(scanner.peek_next(), 's');
+
+        // Stop at last character. Not yet off end.
+
+        assert_eq!(scanner.advance(), 'g');
+
+        assert_eq!(scanner.start, 0);
+        assert_eq!(scanner.current, 3);
+        assert!(!scanner.is_at_end());
+
+        assert_eq!(scanner.peek(), 's');
+        assert_eq!(scanner.peek_next(), '\0');
+
+        // Now off end.
+
+        assert_eq!(scanner.advance(), 's');
+
+        assert_eq!(scanner.start, 0);
+        assert_eq!(scanner.current, 4);
+        assert!(scanner.is_at_end());
+
+        assert_eq!(scanner.peek(), '\0');
+        assert_eq!(scanner.peek_next(), '\0');
+    }
+}
+
 // [1]
 
 // Collecting into Vec<char> is not idiomatic and is space inefficient, because
