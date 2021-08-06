@@ -1,15 +1,21 @@
 use crate::expression::Expr;
+use crate::token_type::TokenType as TT;
 
 fn print(expr: &Expr) -> String {
     match expr {
         Expr::Binary { left, operator, right } =>
-            parenthesize(operator.lexeme(), vec![ &left, &right ]),
+            parenthesize(&operator.lexeme, vec![ &left, &right ]),
         Expr::Grouping { grouping } =>
             parenthesize("group", vec![ &grouping ]),
         Expr::Literal { value } =>
-            value.to_string(),
+            match &value.token_type {
+                TT::Identifier(name) => format!("{:?}", name),
+                TT::String(text)     => format!("{:?}", text),
+                TT::Number(float)    => format!("{}", float),
+                _                    => panic!("token not a literal")
+            }
         Expr::Unary { operator, right } =>
-            parenthesize(operator.lexeme(), vec![ &right ])
+            parenthesize(&operator.lexeme, vec![ &right ])
     }
 }
 
@@ -31,46 +37,48 @@ fn parenthesize(name: &str, exprs: Vec<&Expr>) -> String {
 #[cfg(test)]
 mod tests {
     use crate::token::Token;
-    use crate::token_type::{self, TokenType as TT};
+    use crate::token_type::TokenType as TT;
 
     use super::*;
 
     #[test]
-    fn print_expression() {
-        let number = TT::Number(123 as f64);
-        let another_number = TT::Number(45.67);
-        let eggs = TT::Identifier(String::from("eggs"));
+    fn show_expressions() {
+        let integer = Token::new(
+            TT::Number(123 as f64), 
+            String::from("123"), 1
+        );
 
-        let literal = Expr::Literal {
-            value: &token_type::to_literal(number).unwrap()
-        };
-        
-        let another_literal =Expr::Literal {
-            value: &token_type::to_literal(another_number).unwrap()
-        };
+        let floating = Token::new(
+            TT::Number(45.67),
+            String::from("45.67"), 1
+        );
 
         let left_operand = Expr::Unary {
-            operator: &Token::new(TT::Minus, String::from("-"), 1),
-            right: Box::new(literal)
+            operator: Token::new(TT::Minus, String::from("-"), 1),
+            right: Box::new(Expr::Literal { value: integer })
         };
 
         let operator = Token::new(TT::Star, String::from("*"), 1);
 
         let right_operand = Expr::Grouping {
-            grouping: Box::new(another_literal)
+            grouping: Box::new(Expr::Literal { value: floating })
         };
 
         let binary_expression = Expr::Binary { 
             left: Box::new(left_operand),
-            operator: &operator,
+            operator: operator,
             right: Box::new(right_operand),
         };
 
-        let string_expression = Expr::Literal {
-            value: &token_type::to_literal(eggs).unwrap()
-        };
+        assert_eq!(print(&binary_expression), "(* (- 123) (group 45.67))");
+
+        let string = Token::new(
+            TT::Identifier(String::from("eggs")),
+            String::from("eggs"), 1
+        );
+
+        let string_expression = Expr::Literal { value: string };
 
         assert_eq!(print(&string_expression), "\"eggs\"");
-        assert_eq!(print(&binary_expression), "(* (- 123) (group 45.67))");
     }
 }

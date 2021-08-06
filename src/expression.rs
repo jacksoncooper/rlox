@@ -1,9 +1,8 @@
 use crate::token::Token;
-use crate::token_type;
 
-pub enum Expr<'a> {
-    Binary { left: Box<Expr<'a>>, operator: &'a Token, right: Box<Expr<'a>> },
-    Grouping { grouping: Box<Expr<'a>> },
-    Literal { value: &'a token_type::Literal },
-    Unary { operator: &'a Token, right: Box<Expr<'a>> },
+pub enum Expr {
+    Binary { left: Box<Expr>, operator: Token, right: Box<Expr> },
+    Grouping { grouping: Box<Expr> },
+    Literal { value: Token },
+    Unary { operator: Token, right: Box<Expr> },
 }
