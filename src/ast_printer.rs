@@ -4,9 +4,9 @@ use crate::token_type::TokenType as TT;
 fn print(expr: &Expr) -> String {
     match expr {
         Expr::Binary { left, operator, right } =>
-            parenthesize(&operator.lexeme, vec![ &left, &right ]),
+            parenthesize(&operator.lexeme, &[&left, &right]),
         Expr::Grouping { grouping } =>
-            parenthesize("group", vec![ &grouping ]),
+            parenthesize("group", &[&grouping]),
         Expr::Literal { value } =>
             match &value.token_type {
                 TT::Identifier(name) => format!("{:?}", name),
@@ -15,11 +15,11 @@ fn print(expr: &Expr) -> String {
                 _                    => panic!("token not a literal")
             }
         Expr::Unary { operator, right } =>
-            parenthesize(&operator.lexeme, vec![ &right ])
+            parenthesize(&operator.lexeme, &[&right])
     }
 }
 
-fn parenthesize(name: &str, exprs: Vec<&Expr>) -> String {
+fn parenthesize(name: &str, exprs: &[&Expr]) -> String {
     let mut readable = String::from("(");
 
     readable.push_str(name);
