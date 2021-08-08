@@ -1,8 +1,20 @@
 use std::error;
 use std::process;
 
-pub fn error(line: usize, message: &str) {
+use crate::token::Token;
+use crate::token_type::TokenType as TT;
+
+pub fn syntax_error(line: usize, message: &str) {
     report(line, "", message);
+}
+
+pub fn parse_error(token: &Token, message: &str) {
+    if token.token_type == TT::EndOfFile {
+        report(token.line, " at end", message);
+    } else {
+        let location: String = format!(" at '{}'", token.lexeme);
+        report(token.line, &location, message);
+    }
 }
 
 pub fn report(line: usize, location: &str, message: &str) {

@@ -68,7 +68,7 @@ impl Scanner {
 
             _  => {
                 // TODO: Report the column. Grapheme Clusters will complicate.
-                error::error(self.line, "Unexpected character.");
+                error::syntax_error(self.line, "Unexpected character.");
                 self.had_error = true;
             }
         }
@@ -133,7 +133,7 @@ impl Scanner {
         }
 
         if self.is_at_end() {
-            error::error(self.line, "Unterminated string.");
+            error::syntax_error(self.line, "Unterminated string.");
             self.had_error = true;
             return;
         }
@@ -159,7 +159,7 @@ impl Scanner {
         match maybe_number {
             Ok(number) => self.add_token(TT::Number(number)),
             Err(_) => {
-                error::error(self.line, "Number cannot be represented with 64 bits.");
+                error::syntax_error(self.line, "Number cannot be represented with 64 bits.");
                 self.had_error = true;
             }
         }
