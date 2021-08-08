@@ -3,31 +3,18 @@ use crate::expression::Expr;
 use crate::token::Token;
 use crate::token_type::TokenType as TT;
 
-use self::Parse::{Success, Panic};
-
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
     result: Option<Expr>
 }
 
-// TODO: Should probably be using Result<Expr, ()> for the power of the
-// question mark (?) operator. But Err(()) is not particularly readable in
-// place of Panic.
-
-enum Parse {
-    Success(Expr),
-    Panic
+struct Panic {
+    token: Token,
+    message: String
 }
 
-impl Parse {
-    fn unwrap(self) -> Expr {
-        match self {
-            Success(expr) => expr,
-            Panic => panic!("called `Parse::unwrap()` on a `Panic` value")
-        }
-    }
-}
+type Parse = Result<Expr, Panic>;
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Parser {
@@ -36,8 +23,11 @@ impl Parser {
 
     pub fn parse(&mut self) {
         self.result = match self.expression() {
-            Success(expr) => Some(expr),
-            Panic => None
+            Ok(expr) => Some(expr),
+            Err(panic) => {
+                error::parse_error(&panic.token, &panic.message);
+                None
+            }
         };
     }
 
@@ -60,30 +50,24 @@ impl Parser {
         // TODO: This is really some horrific Rust, caused by trying to capture
         // failure in the Parse type.
 
-        let left: Parse = operand(self);
-
-        if let Panic = left {
-            return Panic;
-        }
-
-        let mut left: Expr = left.unwrap();
+        let mut left: Expr = operand(self)?;
 
         while self.advance_if(operators) {
             let operator: Token = self.previous();
             let right: Parse = operand(self);
 
             match right {
-                Success(expr) =>
+                Ok(expr) =>
                     left = Expr::Binary {
                         left: Box::new(left),
                         operator: operator,
                         right: Box::new(expr)
                     },
-                Panic => return Panic,
+                error => return error,
             }
         }
 
-        Success(left)
+        Ok(left)
     }
 
     fn equality(&mut self) -> Parse {
@@ -119,11 +103,11 @@ impl Parser {
             let right: Parse = self.unary();
 
             return match right {
-                Success(unary) => Success(Expr::Unary {
+                Ok(unary) => Ok(Expr::Unary {
                     operator: operator,
                     right: Box::new(unary)
                 }),
-                Panic => Panic
+                error => error
             }
         }
 
@@ -142,30 +126,22 @@ impl Parser {
 
         if let TT::Number(_) | TT::String(_) | TT::False | TT::True | TT::Nil = token_type {
             let token: Token = self.advance();
-            return Success(Expr::Literal { value: token });
+            return Ok(Expr::Literal { value: token });
         }
 
         if token_type == TT::LeftParen {
             self.advance();
 
-            let group: Parse = self.expression();
-
-            if let Panic = group {
-                return Panic;
-            }
-
-            let group: Expr = group.unwrap();
+            let group: Expr = self.expression()?;
 
             if !self.advance_if(&[TT::RightParen]) {
-                error::parse_error(&self.peek(), "Expect ')' after expression.");
-                return Panic;
+                return Err(self.panic_here("Expect ')' after expression."));
             }
 
-            return Success(Expr::Grouping { grouping: Box::new(group) });
+            return Ok(Expr::Grouping { grouping: Box::new(group) });
         }
 
-        error::parse_error(&self.peek(), "Expect expression.");
-        Panic
+        Err(self.panic_here("Expect expression."))
     }
 
     fn is_at_end(&self) -> bool {
@@ -199,6 +175,13 @@ impl Parser {
         }
         
         false
+    }
+
+    fn panic_here(&self, message: &str) -> Panic {
+        Panic {
+            token: Token::clone(&self.peek()),
+            message: message.to_string()
+        }
     }
 
     fn synchronize(&mut self) {

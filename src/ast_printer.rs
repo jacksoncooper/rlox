@@ -12,6 +12,9 @@ pub fn show(expr: &Expr) -> String {
                 TT::Identifier(name) => format!("{:?}", name),
                 TT::String(text)     => format!("{:?}", text),
                 TT::Number(float)    => format!("{}", float),
+                TT::True             => "true".to_string(),
+                TT::False            => "false".to_string(),
+                TT::Nil              => "nil".to_string(),
                 _                    => panic!("token not a literal")
             }
         Expr::Unary { operator, right } =>
