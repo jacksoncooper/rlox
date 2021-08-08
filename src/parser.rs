@@ -129,19 +129,20 @@ impl Parser {
         }
 
         if token_type == TT::LeftParen {
-            let expr: Parse = self.expression();
+            let group: Parse = self.expression();
 
-            match expr {
-                Success(group) => {
-                    if !self.discard(&[TT::RightParen]) {
-                        error::parse_error(&self.peek(), "Expect ')' after expression.");
-                        return Panic;
-                    }
-
-                    return Success(Expr::Grouping { grouping: Box::new(group) });
-                },
-                Panic => return Panic
+            if let group = Panic {
+                return Panic;
             }
+
+            let group: Expr = group.unwrap();
+
+            if !self.discard(&[TT::RightParen]) {
+                error::parse_error(&self.peek(), "Expect ')' after expression.");
+                return Panic;
+            }
+
+            return Success(Expr::Grouping { grouping: Box::new(group) });
         }
 
         Panic
