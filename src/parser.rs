@@ -7,7 +7,8 @@ use self::Parse::{Success, Panic};
 
 pub struct Parser {
     tokens: Vec<Token>,
-    current: usize
+    current: usize,
+    result: Option<Expr>
 }
 
 // TODO: Should probably be using Result<Expr, ()> for the power of the
@@ -29,8 +30,22 @@ impl Parse {
 }
 
 impl Parser {
-    pub fn new(&self) -> Parser {
-        Parser { tokens: Vec::new(), current: 0 }
+    pub fn new(tokens: Vec<Token>) -> Parser {
+        Parser { tokens, current: 0, result: None }
+    }
+
+    pub fn parse(&mut self) {
+        self.result = match self.expression() {
+            Success(expr) => Some(expr),
+            Panic => None
+        };
+    }
+
+    pub fn consume(self) -> Result<Expr, error::LoxError> {
+        match self.result {
+            Some(expr) => Ok(expr),
+            None => Err(error::LoxError::ParseError)
+        }
     }
 
     fn expression(&mut self) -> Parse {
@@ -123,15 +138,19 @@ impl Parser {
 
         let token_type: TT = self.peek().token_type;
 
+        // TODO: Identifiers?
+
         if let TT::Number(_) | TT::String(_) | TT::False | TT::True | TT::Nil = token_type {
-            let token: Token = self.previous();
+            let token: Token = self.advance();
             return Success(Expr::Literal { value: token });
         }
 
         if token_type == TT::LeftParen {
+            self.advance();
+
             let group: Parse = self.expression();
 
-            if let group = Panic {
+            if let Panic = group {
                 return Panic;
             }
 
@@ -145,6 +164,7 @@ impl Parser {
             return Success(Expr::Grouping { grouping: Box::new(group) });
         }
 
+        error::parse_error(&self.peek(), "Expect expression.");
         Panic
     }
 

@@ -3,7 +3,9 @@ use std::fs;
 use std::io::{self, Write};
 use std::process;
 
+use crate::ast_printer;
 use crate::error;
+use crate::parser::Parser;
 use crate::scanner::Scanner;
 
 // Exit codes from FreeBSD's 'sysexits.h' header: https://bit.ly/36JtSK0
@@ -22,11 +24,10 @@ pub fn interact() {
 
 fn run_file(path: &str) {
     let contents = error::fatal(fs::read_to_string(path), 66);
-    run(&contents);
-
-    // if had_error {
-    //     process::exit(65);
-    // }
+    let success = run(&contents);
+    if success.is_err() {
+        process::exit(65);
+    }
 }
 
 fn run_prompt() {
@@ -45,16 +46,24 @@ fn run_prompt() {
             break;
         }
 
-        run(&line);
-
-        // had_error = false;
+        let _ = run(&line);
     }
 }
 
-fn run(source: &str) {
+fn run(source: &str) -> Result<(), error::LoxError> {
     let mut scanner = Scanner::new(source);
-    match scanner.scan_tokens() {
-        Some(tokens) => for token in tokens { println!("{:?}", token); },
-        None => (),
+    scanner.scan_tokens();
+    let tokens = scanner.consume()?;
+
+    for token in tokens.iter() {
+        println!("{:?}", token);
     }
+    
+    let mut parser = Parser::new(tokens);
+    parser.parse();
+    let expr = parser.consume()?;
+
+    println!("{}", ast_printer::show(&expr));
+    
+    Ok(())
 }

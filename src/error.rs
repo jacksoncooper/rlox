@@ -4,6 +4,11 @@ use std::process;
 use crate::token::Token;
 use crate::token_type::TokenType as TT;
 
+pub enum LoxError {
+    ScanError,
+    ParseError
+}
+
 pub fn syntax_error(line: usize, message: &str) {
     report(line, "", message);
 }

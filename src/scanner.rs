@@ -23,7 +23,7 @@ impl Scanner {
         }
     }
 
-    pub fn scan_tokens(&mut self) -> Option<&Vec<Token>> {
+    pub fn scan_tokens(&mut self) {
         while !self.is_at_end() {
             self.start = self.current;
             self.scan_token();
@@ -37,7 +37,14 @@ impl Scanner {
 
         self.tokens.push(end_of_file);
 
-        if self.had_error { None } else { Some(&self.tokens) }
+    }
+
+    pub fn consume(self) -> Result<Vec<Token>, error::LoxError> {
+        if self.had_error {
+            Err(error::LoxError::ScanError)
+        } else {
+            Ok(self.tokens)
+        }
     }
 
     fn scan_token(&mut self) {

@@ -1,7 +1,7 @@
 use crate::expression::Expr;
 use crate::token_type::TokenType as TT;
 
-fn print(expr: &Expr) -> String {
+pub fn show(expr: &Expr) -> String {
     match expr {
         Expr::Binary { left, operator, right } =>
             parenthesize(&operator.lexeme, &[&left, &right]),
@@ -26,7 +26,7 @@ fn parenthesize(name: &str, exprs: &[&Expr]) -> String {
 
     for expr in exprs {
         readable.push(' ');
-        readable.push_str(&print(expr));
+        readable.push_str(&show(expr));
     }
 
     readable.push(')');
@@ -70,7 +70,7 @@ mod tests {
             right: Box::new(right_operand),
         };
 
-        assert_eq!(print(&binary_expression), "(* (- 123) (group 45.67))");
+        assert_eq!(show(&binary_expression), "(* (- 123) (group 45.67))");
 
         let string = Token::new(
             TT::Identifier(String::from("eggs")),
