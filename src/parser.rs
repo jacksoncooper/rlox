@@ -53,7 +53,7 @@ impl Parser {
 
         let mut left: Expr = left.unwrap();
 
-        while self.discard(operators) {
+        while self.advance_if(operators) {
             let operator: Token = self.previous();
             let right: Parse = operand(self);
 
@@ -99,7 +99,7 @@ impl Parser {
 
         let operators = [TT::Bang, TT::Minus];
 
-        if self.discard(&operators) {
+        if self.advance_if(&operators) {
             let operator: Token = self.previous();
             let right: Parse = self.unary();
 
@@ -116,7 +116,7 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Parse {
-        // We're not using discard() here, which the book calls match(),
+        // We're not using advance_if() here, which the book calls match(),
         // because some of the inhabitants of TokenType carry a literal value
         // and testing for equality requires the construction of an arbitrary
         // literal for TT::Number and TT::String.
@@ -137,7 +137,7 @@ impl Parser {
 
             let group: Expr = group.unwrap();
 
-            if !self.discard(&[TT::RightParen]) {
+            if !self.advance_if(&[TT::RightParen]) {
                 error::parse_error(&self.peek(), "Expect ')' after expression.");
                 return Panic;
             }
@@ -170,7 +170,7 @@ impl Parser {
         self.previous()
     }
 
-    fn discard(&mut self, token_types: &[TT]) -> bool {
+    fn advance_if(&mut self, token_types: &[TT]) -> bool {
         for token_type in token_types {
             if self.check(TT::clone(token_type)) {
                 self.advance();
@@ -179,5 +179,33 @@ impl Parser {
         }
         
         false
+    }
+
+    fn synchronize(&mut self) {
+        // The current Token violates the rule we're processing. Discard it.
+        self.advance();
+
+        while !self.is_at_end() {
+            // If the current Token is a semicolon, the next Token starts a new
+            // statement.
+
+            if self.advance_if(&[TT::Semicolon]) {
+                return;
+            }
+
+            // Otherwise the Token may be a keyword which marks the start of a
+            // statement.
+
+            let token_type: TT = self.peek().token_type;
+
+            // TODO: This is like advance_if() without the advance.
+
+            if let TT::Class | TT::For | TT::Fun | TT::If | TT::Print
+                | TT::Return | TT::Var | TT::While = token_type {
+                return;
+            }
+
+            self.advance();
+        }
     }
 }
