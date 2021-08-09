@@ -58,7 +58,7 @@ fn run(source: &str) -> Result<(), error::LoxError> {
     for token in tokens.iter() {
         println!("{:?}", token);
     }
-    
+
     let mut parser = Parser::new(tokens);
     parser.parse();
     let expr = parser.consume()?;

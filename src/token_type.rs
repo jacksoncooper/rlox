@@ -54,7 +54,7 @@ impl fmt::Display for TokenType {
             // Literals.
             TT::Identifier(text) => format!("{:?}", text),
             TT::String(text) => format!("{:?}", text),
-            TT::Number(number) => number.to_string(),
+            TT::Number(number) => format!("{:?}", number),
 
             // Keywords.
             TT::And => "and".to_string(),

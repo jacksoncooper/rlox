@@ -64,7 +64,7 @@ mod tests {
             right: Box::new(right_operand),
         };
 
-        assert_eq!(show(&binary_expression), "(* (- 123) (group 45.67))");
+        assert_eq!(show(&binary_expression), "(* (- 123.0) (group 45.67))");
 
         let string = Token::new(
             TT::Identifier(String::from("eggs")),
@@ -73,6 +73,6 @@ mod tests {
 
         let string_expression = Expr::Literal { value: string };
 
-        assert_eq!(print(&string_expression), "\"eggs\"");
+        assert_eq!(show(&string_expression), "\"eggs\"");
     }
 }

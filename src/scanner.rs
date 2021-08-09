@@ -70,8 +70,8 @@ impl Scanner {
 
             ' ' | '\t' => (), '\n' => self.line += 1,
 
-            digit if digit.is_ascii_digit() => self.number(),
-            character if character.is_alphabetic() => self.identifier(),
+            d if is_digit(d) => self.number(),
+            c if is_alpha(c) => self.identifier(),
 
             _  => {
                 // TODO: Report the column. Grapheme Clusters will complicate.
@@ -152,13 +152,13 @@ impl Scanner {
     }
 
     fn number(&mut self) {
-        while self.peek().is_ascii_digit() { self.advance(); }
+        while is_digit(self.peek()) { self.advance(); }
        
-        if self.peek() == '.' && self.peek_next().is_ascii_digit() {
+        if self.peek() == '.' && is_digit(self.peek_next()) {
             self.advance();
         }
         
-        while self.peek().is_ascii_digit() { self.advance(); }
+        while is_digit(self.peek()) { self.advance(); }
 
         let lexeme = self.collect_lexeme(self.start, self.current);
         let maybe_number: Result<f64, _> = lexeme.parse();
@@ -166,14 +166,17 @@ impl Scanner {
         match maybe_number {
             Ok(number) => self.add_token(TT::Number(number)),
             Err(_) => {
-                error::syntax_error(self.line, "Number cannot be represented with 64 bits.");
+                error::syntax_error(
+                    self.line,
+                    "Number cannot be represented with 64 bits."
+                );
                 self.had_error = true;
             }
         }
     }
 
     fn identifier(&mut self) {
-        while self.peek().is_alphanumeric() || self.peek() == '_' {
+        while is_alpha_numeric(self.peek()) {
             self.advance();
         }
 
@@ -263,6 +266,18 @@ mod tests {
         assert_eq!(scanner.peek(), '\0');
         assert_eq!(scanner.peek_next(), '\0');
     }
+}
+
+fn is_digit(c: char) -> bool {
+    c.is_ascii_digit()
+}
+
+fn is_alpha(c: char) -> bool {
+    c.is_ascii_alphabetic() || c == '_'
+}
+
+fn is_alpha_numeric(c: char) -> bool {
+    is_alpha(c) || is_digit(c)
 }
 
 // [1]
