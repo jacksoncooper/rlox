@@ -1,5 +1,4 @@
 use crate::expression::Expr;
-use crate::token_type::TokenType as TT;
 
 pub fn show(expr: &Expr) -> String {
     match expr {
@@ -8,15 +7,7 @@ pub fn show(expr: &Expr) -> String {
         Expr::Grouping { grouping } =>
             parenthesize("group", &[&grouping]),
         Expr::Literal { value } =>
-            match &value.token_type {
-                TT::Identifier(name) => format!("{:?}", name),
-                TT::String(text)     => format!("{:?}", text),
-                TT::Number(float)    => format!("{}", float),
-                TT::True             => "true".to_string(),
-                TT::False            => "false".to_string(),
-                TT::Nil              => "nil".to_string(),
-                _                    => panic!("token not a literal")
-            }
+            value.token_type.to_string(),
         Expr::Unary { operator, right } =>
             parenthesize(&operator.lexeme, &[&right])
     }
