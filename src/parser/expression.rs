@@ -1,4 +1,4 @@
-use crate::token::Token;
+use crate::scanner::token::Token;
 
 #[derive(Debug)]
 

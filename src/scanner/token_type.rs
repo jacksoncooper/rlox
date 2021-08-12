@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::token_type::TokenType as TT;
+use crate::scanner::token_type::TokenType as TT;
 
 #[derive(Clone, Debug, PartialEq)]
 
@@ -22,7 +22,7 @@ pub enum TokenType {
     And, Class, Else, False, Fun, For, If, Nil, Or,
     Print, Return, Super, This, True, Var, While,
 
-    EndOfFile
+    EndOfFile,
 }
 
 impl fmt::Display for TokenType {

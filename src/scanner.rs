@@ -1,6 +1,9 @@
 use crate::error;
-use crate::token::Token;
-use crate::token_type::TokenType as TT;
+use crate::scanner::token::Token;
+use crate::scanner::token_type::TokenType as TT;
+
+pub mod token;
+pub mod token_type;
 
 pub struct Scanner {
     source: Vec<char>,

@@ -1,7 +1,9 @@
 use crate::error;
-use crate::expression::Expr;
-use crate::token::Token;
-use crate::token_type::TokenType as TT;
+use crate::parser::expression::Expr;
+use crate::scanner::token::Token;
+use crate::scanner::token_type::TokenType as TT;
+
+pub mod expression;
 
 pub struct Parser {
     tokens: Vec<Token>,

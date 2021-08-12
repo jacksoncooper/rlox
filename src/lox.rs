@@ -3,7 +3,7 @@ use std::fs;
 use std::io::{self, Write};
 use std::process;
 
-use crate::ast_printer;
+use crate::tools::ast_printer;
 use crate::error;
 use crate::parser::Parser;
 use crate::scanner::Scanner;
