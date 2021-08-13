@@ -1,3 +1,4 @@
+use crate::interpreter::object::Object;
 use crate::scanner::token::Token;
 
 #[derive(Debug)]
@@ -5,6 +6,6 @@ use crate::scanner::token::Token;
 pub enum Expr {
     Binary { left: Box<Expr>, operator: Token, right: Box<Expr> },
     Grouping { grouping: Box<Expr> },
-    Literal { value: Token },
+    Literal { value: Object },
     Unary { operator: Token, right: Box<Expr> },
 }

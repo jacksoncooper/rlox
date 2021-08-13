@@ -1,4 +1,5 @@
 use crate::error;
+use crate::interpreter::object::Object;
 use crate::parser::expression::Expr;
 use crate::scanner::token::Token;
 use crate::scanner::token_type::TokenType as TT;
@@ -17,6 +18,17 @@ struct Panic {
 }
 
 type Parse = Result<Expr, Panic>;
+
+fn to_literal(token: Token) -> Object {
+    match token.token_type {
+        TT::Number(float)  => Object::Number(float),
+        TT::String(string) => Object::String(string),
+        TT::False          => Object::Boolean(false),
+        TT::True           => Object::Boolean(true),
+        TT::Nil            => Object::Nil,
+        _                  => panic!("token does not contain a literal")
+    }
+}
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Parser {
@@ -49,23 +61,16 @@ impl Parser {
     {
         // Parse a sequence of left-associative binary operators.
         
-        // TODO: This is really some horrific Rust, caused by trying to capture
-        // failure in the Parse type.
-
         let mut left: Expr = operand(self)?;
 
         while self.advance_if(operators) {
             let operator: Token = self.previous();
-            let right: Parse = operand(self);
+            let right: Expr = operand(self)?;
 
-            match right {
-                Ok(expr) =>
-                    left = Expr::Binary {
-                        left: Box::new(left),
-                        operator: operator,
-                        right: Box::new(expr)
-                    },
-                error => return error,
+            left = Expr::Binary {
+                left: Box::new(left),
+                operator: operator,
+                right: Box::new(right)
             }
         }
 
@@ -96,21 +101,16 @@ impl Parser {
         // Parse a sequence of right-associative unary operators. If the final
         // primary expression panics, the whole unary expression panics.
 
-        // TODO: Maybe rewrite this in the iterative style used for binary()?
-
         let operators = [TT::Bang, TT::Minus];
 
         if self.advance_if(&operators) {
             let operator: Token = self.previous();
-            let right: Parse = self.unary();
+            let right: Expr = self.unary()?;
 
-            return match right {
-                Ok(unary) => Ok(Expr::Unary {
-                    operator: operator,
-                    right: Box::new(unary)
-                }),
-                error => error
-            }
+            return Ok(Expr::Unary {
+                operator: operator,
+                right: Box::new(right)
+            })
         }
 
         self.primary()
@@ -128,7 +128,7 @@ impl Parser {
 
         if let TT::Number(_) | TT::String(_) | TT::False | TT::True | TT::Nil = token_type {
             let token: Token = self.advance();
-            return Ok(Expr::Literal { value: token });
+            return Ok(Expr::Literal { value: to_literal(token) });
         }
 
         if token_type == TT::LeftParen {

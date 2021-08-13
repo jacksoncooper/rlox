@@ -7,7 +7,7 @@ pub fn show(expr: &Expr) -> String {
         Expr::Grouping { grouping } =>
             parenthesize("group", &[&grouping]),
         Expr::Literal { value } =>
-            value.token_type.to_string(),
+            value.to_string(),
         Expr::Unary { operator, right } =>
             parenthesize(&operator.lexeme, &[&right])
     }

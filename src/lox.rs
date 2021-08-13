@@ -3,10 +3,10 @@ use std::fs;
 use std::io::{self, Write};
 use std::process;
 
-use crate::tools::ast_printer;
 use crate::error;
 use crate::parser::Parser;
 use crate::scanner::Scanner;
+use crate::tools::ast_printer;
 
 // Exit codes from FreeBSD's 'sysexits.h' header: https://bit.ly/36JtSK0
 

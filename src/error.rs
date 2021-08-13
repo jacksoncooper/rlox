@@ -6,7 +6,12 @@ use crate::scanner::token_type::TokenType as TT;
 
 pub enum LoxError {
     ScanError,
-    ParseError
+    ParseError,
+    InterpretError,
+}
+
+pub fn report(line: usize, location: &str, message: &str) {
+    eprintln!("[line {}] Error{}: {}", line, location, message);
 }
 
 pub fn syntax_error(line: usize, message: &str) {
@@ -22,15 +27,15 @@ pub fn parse_error(token: &Token, message: &str) {
     }
 }
 
-pub fn report(line: usize, location: &str, message: &str) {
-    println!("[line {}] Error{}: {}", line, location, message);
+pub fn runtime_error(token: &Token, message: &str) {
+    eprintln!("{}\n[line {}]", message, token.line);
 }
 
 pub fn fatal<T, E: error::Error>(result: Result<T, E>, exit_code: i32) -> T {
     match result {
         Ok(value) => value,
         Err(error) => {
-            println!("fatal: {}", error.to_string());
+            eprintln!("fatal: {}", error.to_string());
             process::exit(exit_code);
         }
     }
