@@ -15,7 +15,7 @@ impl fmt::Display for Object {
             Object::Nil => "nil".to_string(),
             Object::Boolean(bool)  => bool.to_string(),
             Object::Number(float)  => float.to_string(),
-            Object::String(string) => string.to_string(),
+            Object::String(string) => format!("{:?}", string),
         };
 
         write!(f, "{}", readable)
