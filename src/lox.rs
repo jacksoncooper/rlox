@@ -4,6 +4,7 @@ use std::io::{self, Write};
 use std::process;
 
 use crate::error;
+use crate::interpreter;
 use crate::parser::Parser;
 use crate::scanner::Scanner;
 use crate::tools::ast_printer;
@@ -25,8 +26,12 @@ pub fn interact() {
 fn run_file(path: &str) {
     let contents = error::fatal(fs::read_to_string(path), 66);
     let success = run(&contents);
-    if success.is_err() {
-        process::exit(65);
+
+    match success {
+        Err(error::LoxError::ScanError)      => process::exit(65),
+        Err(error::LoxError::ParseError)     => process::exit(65),
+        Err(error::LoxError::InterpretError) => process::exit(70),
+        Ok(())                               => process::exit(0),
     }
 }
 
@@ -65,5 +70,8 @@ fn run(source: &str) -> Result<(), error::LoxError> {
 
     println!("{}", ast_printer::show(&expr));
     
+    let result: String = interpreter::show(expr)?;
+    println!("{}", result);
+
     Ok(())
 }

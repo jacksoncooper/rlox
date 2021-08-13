@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 
 pub enum Object {
     Nil,

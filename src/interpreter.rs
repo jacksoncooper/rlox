@@ -35,6 +35,7 @@ pub fn show(expr: Expr) -> Result<String, error::LoxError> {
 fn evaluate(expr: Expr) -> Computation {
     // This function gobbles the syntax tree intentionally to emphasize that it
     // is "reduced" to a value, or consumed.
+
     match expr {
         Expr::Binary { left, operator, right } =>
             evaluate_binary(*left, operator, *right),
@@ -51,13 +52,64 @@ fn evaluate(expr: Expr) -> Computation {
 fn evaluate_binary(left: Expr, operator: Token, right: Expr) -> Computation {
     let left: Object = evaluate(left)?;
     let right: Object = evaluate(right)?;
-    let operands = (left, right);
 
     match operator.token_type {
+        TT::BangEqual =>
+            Ok(Object::Boolean(left != right)),
+        TT::EqualEqual =>
+            Ok(Object::Boolean(left == right)),
+        TT::Greater =>
+            match (left, right) {
+                (Object::Number(left), Object::Number(right)) =>
+                    Ok(Object::Boolean(left > right)),
+                _ => Err(Error::new(&operator, "Operands to (>) must be two numbers.")),
+            },
+        TT::GreaterEqual =>
+            match (left, right) {
+                (Object::Number(left), Object::Number(right)) =>
+                    Ok(Object::Boolean(left >= right)),
+                _ => Err(Error::new(&operator, "Operands to (>=) must be two numbers.")),
+            },
+        TT::Less =>
+            match (left, right) {
+                (Object::Number(left), Object::Number(right)) =>
+                    Ok(Object::Boolean(left < right)),
+                _ => Err(Error::new(&operator, "Operands to (<) must be two numbers.")),
+            },
+        TT::LessEqual =>
+            match (left, right) {
+                (Object::Number(left), Object::Number(right)) =>
+                    Ok(Object::Boolean(left <= right)),
+                _ => Err(Error::new(&operator, "Operands to (<=) must be two numbers.")),
+            },
         TT::Minus =>
-            match operands {
-                (Object::Number(left), Object::Number(right)) => Ok(Object::Number(left + right)),
-                _ => Err(Error::new(&operator, "Cannot add operands that are not both numbers.")),
+            match (left, right) {
+                (Object::Number(left), Object::Number(right)) =>
+                    Ok(Object::Number(left - right)),
+                _ => Err(Error::new(&operator, "Operands to (-) must be two numbers.")),
+            },
+        TT::Plus =>
+            match (left, right) {
+                (Object::Number(left), Object::Number(right)) =>
+                    Ok(Object::Number(left + right)),
+                (Object::String(mut left), Object::String(right)) => {
+                    left.push_str(&right);
+                    Ok(Object::String(left))
+                }
+                _ => Err(Error::new(&operator, "Operands to (+) must be two numbers or two strings.")),
+            }
+        TT::Slash =>
+            match (left, right) {
+                (Object::Number(left), Object::Number(right)) =>
+                    if right != 0 as f64 { Ok(Object::Number(left / right)) }
+                    else { Err(Error::new(&operator, "Division by zero.")) }
+                _ => Err(Error::new(&operator, "Operands to (/) must be two numbers.")),
+            },
+        TT::Star =>
+            match (left, right) {
+                (Object::Number(left), Object::Number(right)) =>
+                    Ok(Object::Number(left * right)),
+                _ => Err(Error::new(&operator, "Operands to (*) must be two numbers.")),
             },
 
         // A panic here indicates an error in the parser.
@@ -66,15 +118,15 @@ fn evaluate_binary(left: Expr, operator: Token, right: Expr) -> Computation {
 }
 
 fn evaluate_unary(operator: Token, right: Expr) -> Computation {
-    let operand: Object = evaluate(right)?;
+    let right: Object = evaluate(right)?;
 
     match operator.token_type {
         TT::Bang =>
-            Ok(Object::Boolean(is_truthy(operand))),
+            Ok(Object::Boolean(is_truthy(right))),
         TT::Minus =>
-            match operand {
+            match right {
                 Object::Number(float) => Ok(Object::Number(-float)),
-                _ => Err(Error::new(&operator, "Cannot negate an operand that isn't a number.")),
+                _ => Err(Error::new(&operator, "Operand to (-) must be a number.")),
             },
         
         // A panic here indicates an error in the parser. [1] 
