@@ -46,13 +46,12 @@ impl Parser {
                 Err(panic) => {
                     error::parse_error(&panic.token, &panic.message);
                     had_error = true;
+                    self.synchronize();
                 }
             }
         }
 
-        if had_error {
-            self.statements = None;
-        } else {
+        if !had_error {
             self.statements = Some(statements);
         }
     }
@@ -223,9 +222,6 @@ impl Parser {
     }
 
     fn synchronize(&mut self) {
-        // The current Token violates the rule we're processing. Discard it.
-        self.advance();
-
         while !self.is_at_end() {
             // If the current Token is a semicolon, the next Token starts a new
             // statement.

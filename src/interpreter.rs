@@ -21,37 +21,39 @@ impl Error {
     }
 }
 
-pub fn evaluate(stmt: Stmt) -> Result<(), error::LoxError> {
-    match evaluate_statement(stmt) {
-        Err(error) => {
+pub fn interpret(statements: Vec<Stmt>) -> Result<(), error::LoxError> {
+    for statement in statements {
+        if let Err(error) = execute(statement) {
             error::runtime_error(&error.token, &error.message);
-            Err(error::LoxError::InterpretError)
-        },
-        Ok(()) => Ok(())
+            // A runtime error kills the interpreter.
+            return Err(error::LoxError::InterpretError);
+        }
     }
-}
 
-fn evaluate_statement(stmt: Stmt) -> Result<(), Error> {
-    match stmt {
-        Stmt::Expression { expression } =>
-            evaluate_expression_statement(expression),
-        Stmt::Print { expression } =>
-            evaluate_print_statement(expression),
-    }
-}
-
-fn evaluate_expression_statement(expr: Expr) -> Result<(), Error>{
-    evaluate_expression(expr)?;
     Ok(())
 }
 
-fn evaluate_print_statement(expr: Expr) -> Result<(), Error>{
-    let value: Object = evaluate_expression(expr)?;
+fn execute(stmt: Stmt) -> Result<(), Error> {
+    match stmt {
+        Stmt::Expression { expression } =>
+            execute_expression_statement(expression),
+        Stmt::Print { expression } =>
+            execute_print_statement(expression),
+    }
+}
+
+fn execute_expression_statement(expr: Expr) -> Result<(), Error>{
+    evaluate(expr)?;
+    Ok(())
+}
+
+fn execute_print_statement(expr: Expr) -> Result<(), Error>{
+    let value: Object = evaluate(expr)?;
     println!("{}", value);
     Ok(())
 }
 
-fn evaluate_expression(expr: Expr) -> Result<Object, Error> {
+fn evaluate(expr: Expr) -> Result<Object, Error> {
     // This function gobbles the syntax tree intentionally to emphasize that it
     // is "reduced" to a value, or consumed.
 
@@ -59,7 +61,7 @@ fn evaluate_expression(expr: Expr) -> Result<Object, Error> {
         Expr::Binary { left, operator, right } =>
             evaluate_binary(*left, operator, *right),
         Expr::Grouping { grouping } =>
-            evaluate_expression(*grouping),
+            evaluate(*grouping),
         Expr::Literal { value } =>
             Ok(value),
         Expr::Unary { operator, right } =>
@@ -69,8 +71,8 @@ fn evaluate_expression(expr: Expr) -> Result<Object, Error> {
 }
 
 fn evaluate_binary(left: Expr, operator: Token, right: Expr) -> Result<Object, Error> {
-    let left: Object = evaluate_expression(left)?;
-    let right: Object = evaluate_expression(right)?;
+    let left: Object = evaluate(left)?;
+    let right: Object = evaluate(right)?;
 
     match operator.token_type {
         TT::BangEqual =>
@@ -137,7 +139,7 @@ fn evaluate_binary(left: Expr, operator: Token, right: Expr) -> Result<Object, E
 }
 
 fn evaluate_unary(operator: Token, right: Expr) -> Result<Object, Error> {
-    let right: Object = evaluate_expression(right)?;
+    let right: Object = evaluate(right)?;
 
     match operator.token_type {
         TT::Bang =>

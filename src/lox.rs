@@ -59,18 +59,15 @@ fn run(source: &str) -> Result<(), error::LoxError> {
     scanner.scan_tokens();
     let tokens = scanner.consume()?;
 
-    for token in tokens.iter() {
-        println!("{:?}", token);
-    }
+    // for token in tokens.iter() {
+    //     println!("{:?}", token);
+    // }
 
     let mut parser = Parser::new(tokens);
     parser.parse();
-    let stmts = parser.consume()?;
+    let statements = parser.consume()?;
 
-    for stmt in stmts {
-        println!("{}", stmt);
-        interpreter::evaluate(stmt);
-    }
-    
+    interpreter::interpret(statements)?;
+
     Ok(())
 }
