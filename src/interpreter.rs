@@ -1,6 +1,7 @@
 use crate::error;
 use crate::interpreter::object::Object;
 use crate::parser::expression::Expr;
+use crate::parser::statement::Stmt;
 use crate::scanner::token::Token;
 use crate::scanner::token_type::TokenType as TT;
 
@@ -20,19 +21,37 @@ impl Error {
     }
 }
 
-type Computation = Result<Object, Error>;
-
-pub fn show(expr: Expr) -> Result<String, error::LoxError> {
-    match evaluate(expr) {
-        Ok(object) => Ok(object.to_string()),
+pub fn evaluate(stmt: Stmt) -> Result<(), error::LoxError> {
+    match evaluate_statement(stmt) {
         Err(error) => {
             error::runtime_error(&error.token, &error.message);
             Err(error::LoxError::InterpretError)
-        }
+        },
+        Ok(()) => Ok(())
     }
 }
 
-fn evaluate(expr: Expr) -> Computation {
+fn evaluate_statement(stmt: Stmt) -> Result<(), Error> {
+    match stmt {
+        Stmt::Expression { expression } =>
+            evaluate_expression_statement(expression),
+        Stmt::Print { expression } =>
+            evaluate_print_statement(expression),
+    }
+}
+
+fn evaluate_expression_statement(expr: Expr) -> Result<(), Error>{
+    evaluate_expression(expr)?;
+    Ok(())
+}
+
+fn evaluate_print_statement(expr: Expr) -> Result<(), Error>{
+    let value: Object = evaluate_expression(expr)?;
+    println!("{}", value);
+    Ok(())
+}
+
+fn evaluate_expression(expr: Expr) -> Result<Object, Error> {
     // This function gobbles the syntax tree intentionally to emphasize that it
     // is "reduced" to a value, or consumed.
 
@@ -40,7 +59,7 @@ fn evaluate(expr: Expr) -> Computation {
         Expr::Binary { left, operator, right } =>
             evaluate_binary(*left, operator, *right),
         Expr::Grouping { grouping } =>
-            evaluate(*grouping),
+            evaluate_expression(*grouping),
         Expr::Literal { value } =>
             Ok(value),
         Expr::Unary { operator, right } =>
@@ -49,9 +68,9 @@ fn evaluate(expr: Expr) -> Computation {
 
 }
 
-fn evaluate_binary(left: Expr, operator: Token, right: Expr) -> Computation {
-    let left: Object = evaluate(left)?;
-    let right: Object = evaluate(right)?;
+fn evaluate_binary(left: Expr, operator: Token, right: Expr) -> Result<Object, Error> {
+    let left: Object = evaluate_expression(left)?;
+    let right: Object = evaluate_expression(right)?;
 
     match operator.token_type {
         TT::BangEqual =>
@@ -117,8 +136,8 @@ fn evaluate_binary(left: Expr, operator: Token, right: Expr) -> Computation {
     }
 }
 
-fn evaluate_unary(operator: Token, right: Expr) -> Computation {
-    let right: Object = evaluate(right)?;
+fn evaluate_unary(operator: Token, right: Expr) -> Result<Object, Error> {
+    let right: Object = evaluate_expression(right)?;
 
     match operator.token_type {
         TT::Bang =>

@@ -11,13 +11,11 @@ pub enum Object {
 
 impl fmt::Display for Object {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let readable: String = match self {
-            Object::Nil => "nil".to_string(),
-            Object::Boolean(bool)  => bool.to_string(),
-            Object::Number(float)  => float.to_string(),
-            Object::String(string) => format!("{:?}", string),
-        };
-
-        write!(f, "{}", readable)
+        match self {
+            Object::Nil => write!(f, "nil"),
+            Object::Boolean(bool)  => write!(f, "{}", bool),
+            Object::Number(float)  => write!(f, "{}", float),
+            Object::String(string) => write!(f, "{}", string),
+        }
     }
 }

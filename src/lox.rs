@@ -69,10 +69,8 @@ fn run(source: &str) -> Result<(), error::LoxError> {
 
     for stmt in stmts {
         println!("{}", stmt);
+        interpreter::evaluate(stmt);
     }
     
-    // let result: String = interpreter::show(expr)?;
-    // println!("{}", result);
-
     Ok(())
 }
