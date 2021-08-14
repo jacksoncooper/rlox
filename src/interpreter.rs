@@ -173,4 +173,3 @@ fn is_truthy(operand: Object) -> bool {
 // possibility of a panic! using the type system. But it would complicate the
 // scanner and necessitate the use of trait objects. I think. I don't really
 // know how to write Rust.
-

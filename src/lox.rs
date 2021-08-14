@@ -1,60 +1,69 @@
 use std::env;
+use std::error;
 use std::fs;
 use std::io::{self, Write};
 use std::process;
 
-use crate::error;
+use crate::error::LoxError;
 use crate::interpreter;
 use crate::parser::Parser;
 use crate::scanner::Scanner;
 
-// Exit codes from FreeBSD's 'sysexits.h' header: https://bit.ly/36JtSK0
+// Exit codes from FreeBSD's 'sysexits.h' header: https://bit.ly/36JtSK0.
 
 pub fn interact() {
+    process::exit(match lox() {
+        Err(exit_code) => exit_code,
+        Ok(())         => 0
+    });
+}
+
+fn lox() -> Result<(), i32> {
     let args: Vec<String> = env::args().skip(1).collect();
     if args.len() > 1 {
         println!("usage: jlox [script]");
-        process::exit(64);
+        return Err(64);
     } else if args.len() == 1 {
-        run_file(&args[0]);
+        return run_file(&args[0]);
     } else {
-        run_prompt();
+        return run_prompt();
     }
 }
 
-fn run_file(path: &str) {
-    let contents = error::fatal(fs::read_to_string(path), 66);
-    let success = run(&contents);
+fn run_file(path: &str) -> Result<(), i32> {
+    let contents = fatal(fs::read_to_string(path), 66)?;
+    let status = run(&contents);
 
-    match success {
-        Err(error::LoxError::ScanError)      => process::exit(65),
-        Err(error::LoxError::ParseError)     => process::exit(65),
-        Err(error::LoxError::InterpretError) => process::exit(70),
-        Ok(())                               => process::exit(0),
+    match status {
+        Err(LoxError::ScanError)      => Err(65),
+        Err(LoxError::ParseError)     => Err(65),
+        Err(LoxError::InterpretError) => Err(70),
+        Ok(())                        => Ok(()),
     }
 }
 
-fn run_prompt() {
+fn run_prompt() -> Result<(), i32> {
     loop {
         let stdin = io::stdin();
         let mut stdout = io::stdout();
 
         print!("> ");
-        error::fatal(stdout.flush(), 74);
+        fatal(stdout.flush(), 74)?;
 
         let mut line = String::new();
-        error::fatal(stdin.read_line(&mut line), 74);
+        fatal(stdin.read_line(&mut line), 74)?;
         let line = line.trim();
 
         if line.is_empty() {
-            break;
+            return Ok(());
         }
 
-        let _ = run(&line);
+        // Absorb any error from the scanner, parser, or interpreter.
+        let _: Result<(), LoxError> = run(&line);
     }
 }
 
-fn run(source: &str) -> Result<(), error::LoxError> {
+fn run(source: &str) -> Result<(), LoxError> {
     let mut scanner = Scanner::new(source);
     scanner.scan_tokens();
     let tokens = scanner.consume()?;
@@ -70,4 +79,14 @@ fn run(source: &str) -> Result<(), error::LoxError> {
     interpreter::interpret(statements)?;
 
     Ok(())
+}
+
+pub fn fatal<T, E: error::Error>(result: Result<T, E>, exit_code: i32) -> Result<T, i32> {
+    match result {
+        Ok(value) => Ok(value),
+        Err(error) => {
+            eprintln!("fatal: {}", error.to_string());
+            Err(exit_code)
+        }
+    }
 }
