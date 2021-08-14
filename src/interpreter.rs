@@ -122,7 +122,7 @@ fn evaluate_unary(operator: Token, right: Expr) -> Computation {
 
     match operator.token_type {
         TT::Bang =>
-            Ok(Object::Boolean(is_truthy(right))),
+            Ok(Object::Boolean(!is_truthy(right))),
         TT::Minus =>
             match right {
                 Object::Number(float) => Ok(Object::Number(-float)),

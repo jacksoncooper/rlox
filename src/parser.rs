@@ -1,23 +1,23 @@
 use crate::error;
 use crate::interpreter::object::Object;
 use crate::parser::expression::Expr;
+use crate::parser::statement::Stmt;
 use crate::scanner::token::Token;
 use crate::scanner::token_type::TokenType as TT;
 
 pub mod expression;
+pub mod statement;
 
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
-    result: Option<Expr>
+    statements: Option<Vec<Stmt>>
 }
 
 struct Panic {
     token: Token,
     message: String
 }
-
-type Parse = Result<Expr, Panic>;
 
 fn to_literal(token: Token) -> Object {
     match token.token_type {
@@ -32,32 +32,64 @@ fn to_literal(token: Token) -> Object {
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Parser {
-        Parser { tokens, current: 0, result: None }
+        Parser { tokens, current: 0, statements: None }
     }
 
     pub fn parse(&mut self) {
-        self.result = match self.expression() {
-            Ok(expr) => Some(expr),
-            Err(panic) => {
-                error::parse_error(&panic.token, &panic.message);
-                None
+        let mut had_error: bool = false;
+        let mut statements: Vec<Stmt> = Vec::new();
+
+        while !self.is_at_end() {
+            match self.statement() {
+                Ok(statement) =>
+                    statements.push(statement),
+                Err(panic) => {
+                    error::parse_error(&panic.token, &panic.message);
+                    had_error = true;
+                }
             }
-        };
+        }
+
+        if had_error {
+            self.statements = None;
+        } else {
+            self.statements = Some(statements);
+        }
     }
 
-    pub fn consume(self) -> Result<Expr, error::LoxError> {
-        match self.result {
-            Some(expr) => Ok(expr),
+    pub fn consume(self) -> Result<Vec<Stmt>, error::LoxError> {
+        match self.statements {
+            Some(statements) => Ok(statements),
             None => Err(error::LoxError::ParseError)
         }
     }
 
-    fn expression(&mut self) -> Parse {
+    fn statement(&mut self) -> Result<Stmt, Panic> {
+        if self.advance_if(&[TT::Print]) {
+            return self.print_statement();
+        }
+
+        self.expression_statement()
+    }
+
+    fn print_statement(&mut self) -> Result<Stmt, Panic> {
+        let value: Expr = self.expression()?;
+        self.expect(TT::Semicolon, "Expect ';' after value.")?;
+        Ok(Stmt::Print { expression: value })
+    }
+
+    fn expression_statement(&mut self) -> Result<Stmt, Panic> {
+        let expr: Expr = self.expression()?;
+        self.expect(TT::Semicolon, "Expect ';' after expression.")?;
+        Ok(Stmt::Expression { expression: expr })
+    }
+
+    fn expression(&mut self) -> Result<Expr, Panic> {
         self.equality()
     }
 
-    fn binary<O>(&mut self, operators: &[TT], operand: &O) -> Parse
-        where O: Fn(&mut Self) -> Parse
+    fn binary<O>(&mut self, operators: &[TT], operand: &O) -> Result<Expr, Panic>
+        where O: Fn(&mut Self) -> Result<Expr, Panic>
     {
         // Parse a sequence of left-associative binary operators.
         
@@ -77,27 +109,27 @@ impl Parser {
         Ok(left)
     }
 
-    fn equality(&mut self) -> Parse {
+    fn equality(&mut self) -> Result<Expr, Panic> {
         let operators = [TT::BangEqual, TT::EqualEqual];
         self.binary(&operators, &Parser::comparison)
     }
 
-    fn comparison(&mut self) -> Parse {
+    fn comparison(&mut self) -> Result<Expr, Panic> {
         let operators = [TT::Greater, TT::GreaterEqual, TT::Less, TT::LessEqual];
         self.binary(&operators, &Parser::term)
     }
 
-    fn term(&mut self) -> Parse {
+    fn term(&mut self) -> Result<Expr, Panic> {
         let operators = [TT::Minus, TT::Plus];
         self.binary(&operators, &Parser::factor)
     }
 
-    fn factor(&mut self) -> Parse {
+    fn factor(&mut self) -> Result<Expr, Panic> {
         let operators = [TT::Slash, TT::Star];
         self.binary(&operators, &Parser::unary)
     }
 
-    fn unary(&mut self) -> Parse {
+    fn unary(&mut self) -> Result<Expr, Panic> {
         // Parse a sequence of right-associative unary operators. If the final
         // primary expression panics, the whole unary expression panics.
 
@@ -116,7 +148,7 @@ impl Parser {
         self.primary()
     }
 
-    fn primary(&mut self) -> Parse {
+    fn primary(&mut self) -> Result<Expr, Panic> {
         // We're not using advance_if() here, which the book calls match(),
         // because some of the inhabitants of TokenType carry a literal value
         // and testing for equality requires the construction of an arbitrary
@@ -133,13 +165,8 @@ impl Parser {
 
         if token_type == TT::LeftParen {
             self.advance();
-
             let group: Expr = self.expression()?;
-
-            if !self.advance_if(&[TT::RightParen]) {
-                return Err(self.panic_here("Expect ')' after expression."));
-            }
-
+            self.expect(TT::RightParen, "Expect ')' after expression.")?;
             return Ok(Expr::Grouping { grouping: Box::new(group) });
         }
 
@@ -177,6 +204,15 @@ impl Parser {
         }
         
         false
+    }
+
+    fn expect(&mut self, token_type: TT, message: &str) -> Result<(), Panic> {
+        if self.check(TT::clone(&token_type)) {
+            self.advance();
+            return Ok(())
+        }
+
+        Err(self.panic_here(message))
     }
 
     fn panic_here(&self, message: &str) -> Panic {

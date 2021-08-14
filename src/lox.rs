@@ -7,7 +7,6 @@ use crate::error;
 use crate::interpreter;
 use crate::parser::Parser;
 use crate::scanner::Scanner;
-use crate::tools::ast_printer;
 
 // Exit codes from FreeBSD's 'sysexits.h' header: https://bit.ly/36JtSK0
 
@@ -66,12 +65,14 @@ fn run(source: &str) -> Result<(), error::LoxError> {
 
     let mut parser = Parser::new(tokens);
     parser.parse();
-    let expr = parser.consume()?;
+    let stmts = parser.consume()?;
 
-    println!("{}", ast_printer::show(&expr));
+    for stmt in stmts {
+        println!("{}", stmt);
+    }
     
-    let result: String = interpreter::show(expr)?;
-    println!("{}", result);
+    // let result: String = interpreter::show(expr)?;
+    // println!("{}", result);
 
     Ok(())
 }
