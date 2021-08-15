@@ -39,6 +39,8 @@ fn execute(stmt: Stmt) -> Result<(), Error> {
             execute_expression_statement(expression),
         Stmt::Print { expression } =>
             execute_print_statement(expression),
+        Stmt::Var { name, initializer } =>
+            unimplemented!()
     }
 }
 
@@ -66,6 +68,8 @@ fn evaluate(expr: Expr) -> Result<Object, Error> {
             Ok(value),
         Expr::Unary { operator, right } =>
             evaluate_unary(operator, *right),
+        Expr::Variable { name } =>
+            unimplemented!()
     }
 
 }

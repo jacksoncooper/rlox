@@ -19,12 +19,12 @@ struct Panic {
     message: String
 }
 
-fn to_literal(token: Token) -> Object {
+fn to_object(token: Token) -> Object {
     match token.token_type {
-        TT::Number(float)  => Object::Number(float),
-        TT::String(string) => Object::String(string),
         TT::False          => Object::Boolean(false),
         TT::True           => Object::Boolean(true),
+        TT::Number(float)  => Object::Number(float),
+        TT::String(string) => Object::String(string),
         TT::Nil            => Object::Nil,
         _                  => panic!("token does not contain a literal")
     }
@@ -40,9 +40,9 @@ impl Parser {
         let mut statements: Vec<Stmt> = Vec::new();
 
         while !self.is_at_end() {
-            match self.statement() {
-                Ok(statement) =>
-                    statements.push(statement),
+            match self.declaration() {
+                Ok(declaration) =>
+                    statements.push(declaration),
                 Err(panic) => {
                     error::parse_error(&panic.token, &panic.message);
                     had_error = true;
@@ -61,6 +61,33 @@ impl Parser {
             Some(statements) => Ok(statements),
             None => Err(error::LoxError::ParseError)
         }
+    }
+
+    fn declaration(&mut self) -> Result<Stmt, Panic> {
+        if self.advance_if(&[TT::Var]) {
+            return self.variable_declaration();
+        }
+
+        self.statement()
+    }
+
+    fn variable_declaration(&mut self) -> Result<Stmt, Panic> {
+        let name: Token = self.advance();
+
+        match name.token_type {
+            TT::Identifier(_) => (),
+            _ => return Err(self.panic_here("Expect variable name.")),
+        }
+
+        let initializer = if self.advance_if(&[TT::Equal]) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+    
+        self.expect(TT::Semicolon, "Expect ';' after variable declaration.")?;
+
+        Ok(Stmt::Var { name, initializer })
     }
 
     fn statement(&mut self) -> Result<Stmt, Panic> {
@@ -148,21 +175,20 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Expr, Panic> {
-        // We're not using advance_if() here, which the book calls match(),
-        // because some of the inhabitants of TokenType carry a literal value
-        // and testing for equality requires the construction of an arbitrary
-        // literal for TT::Number and TT::String.
+        let token: Token = self.peek();
+        let token_type: TT = TT::clone(&token.token_type);
 
-        let token_type: TT = self.peek().token_type;
-
-        // TODO: Identifiers?
-
-        if let TT::Number(_) | TT::String(_) | TT::False | TT::True | TT::Nil = token_type {
-            let token: Token = self.advance();
-            return Ok(Expr::Literal { value: to_literal(token) });
+        if let TT::Identifier(_) = token_type {
+            self.advance();
+            return Ok(Expr::Variable { name: token });
         }
 
-        if token_type == TT::LeftParen {
+        if let TT::False | TT::True | TT::Number(_) | TT::String(_) | TT::Nil = token_type {
+            self.advance();
+            return Ok(Expr::Literal { value: to_object(token) });
+        }
+
+        if let TT::LeftParen = token_type {
             self.advance();
             let group: Expr = self.expression()?;
             self.expect(TT::RightParen, "Expect ')' after expression.")?;
@@ -190,7 +216,10 @@ impl Parser {
     }
 
     fn advance(&mut self) -> Token {
-        if !self.is_at_end() { self.current += 1; }
+        if !self.is_at_end() {
+            self.current += 1;
+        }
+        
         self.previous()
     }
 
@@ -205,10 +234,9 @@ impl Parser {
         false
     }
 
-    fn expect(&mut self, token_type: TT, message: &str) -> Result<(), Panic> {
+    fn expect(&mut self, token_type: TT, message: &str) -> Result<Token, Panic> {
         if self.check(TT::clone(&token_type)) {
-            self.advance();
-            return Ok(())
+            return Ok(self.advance());
         }
 
         Err(self.panic_here(message))
@@ -226,7 +254,8 @@ impl Parser {
             // If the current Token is a semicolon, the next Token starts a new
             // statement.
 
-            if self.advance_if(&[TT::Semicolon]) {
+            if self.check(TT::Semicolon) {
+                self.advance();
                 return;
             }
 
@@ -237,8 +266,7 @@ impl Parser {
 
             // TODO: This is like advance_if() without the advance.
 
-            if let TT::Class | TT::For | TT::Fun | TT::If | TT::Print
-                | TT::Return | TT::Var | TT::While = token_type {
+            if let TT::Class | TT::For | TT::Fun | TT::If | TT::Print | TT::Return | TT::Var | TT::While = token_type {
                 return;
             }
 

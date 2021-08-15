@@ -186,7 +186,7 @@ impl Scanner {
         let identifier = self.collect_lexeme(self.start, self.current);
 
         let token = match identifier.as_str() {
-            "and" => TT::And,
+            "and"    => TT::And,
             "class"  => TT::Class,
             "else"   => TT::Else,
             "false"  => TT::False,

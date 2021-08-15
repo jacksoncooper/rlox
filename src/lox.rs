@@ -20,13 +20,14 @@ pub fn interact() {
 
 fn lox() -> Result<(), i32> {
     let args: Vec<String> = env::args().skip(1).collect();
+
     if args.len() > 1 {
         println!("usage: jlox [script]");
-        return Err(64);
+        Err(64)
     } else if args.len() == 1 {
-        return run_file(&args[0]);
+        run_file(&args[0])
     } else {
-        return run_prompt();
+        run_prompt()
     }
 }
 
@@ -68,15 +69,19 @@ fn run(source: &str) -> Result<(), LoxError> {
     scanner.scan_tokens();
     let tokens = scanner.consume()?;
 
-    // for token in tokens.iter() {
-    //     println!("{:?}", token);
-    // }
+    for token in tokens.iter() {
+        println!("{:?}", token);
+    }
 
     let mut parser = Parser::new(tokens);
     parser.parse();
     let statements = parser.consume()?;
 
-    interpreter::interpret(statements)?;
+    for statement in statements {
+        println!("{}", statement);
+    }
+
+    // interpreter::interpret(statements)?;
 
     Ok(())
 }

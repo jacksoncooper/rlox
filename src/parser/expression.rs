@@ -10,6 +10,7 @@ pub enum Expr {
     Grouping { grouping: Box<Expr> },
     Literal { value: Object },
     Unary { operator: Token, right: Box<Expr> },
+    Variable { name: Token },
 }
 
 impl fmt::Display for Expr {
@@ -23,6 +24,8 @@ impl fmt::Display for Expr {
                 write!(f, "{}", value.to_string()),
             Expr::Unary { operator, right } =>
                 write!(f, "({} {})", operator.lexeme, right.to_string()),
+            Expr::Variable { name } =>
+                write!(f, "(var {})", name.lexeme),
         }
     }
 }
