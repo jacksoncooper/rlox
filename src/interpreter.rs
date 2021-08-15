@@ -5,6 +5,7 @@ use crate::parser::statement::Stmt;
 use crate::scanner::token::Token;
 use crate::scanner::token_type::TokenType as TT;
 
+pub mod environment;
 pub mod object;
 
 struct Error {
