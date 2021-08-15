@@ -5,7 +5,7 @@ use std::io::{self, Write};
 use std::process;
 
 use crate::error::LoxError;
-use crate::interpreter;
+use crate::interpreter::Interpreter;
 use crate::parser::Parser;
 use crate::scanner::Scanner;
 
@@ -77,11 +77,12 @@ fn run(source: &str) -> Result<(), LoxError> {
     parser.parse();
     let statements = parser.consume()?;
 
-    for statement in statements {
+    for statement in statements.iter() {
         println!("{}", statement);
     }
 
-    // interpreter::interpret(statements)?;
+    let mut interpreter = Interpreter::new();
+    interpreter.interpret(statements)?;
 
     Ok(())
 }
