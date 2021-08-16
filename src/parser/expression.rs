@@ -6,6 +6,7 @@ use crate::scanner::token::Token;
 #[derive(Debug)]
 
 pub enum Expr {
+    Assignment { name: Token, value: Box<Expr> },
     Binary { left: Box<Expr>, operator: Token, right: Box<Expr> },
     Grouping { grouping: Box<Expr> },
     Literal { value: Object },
@@ -16,6 +17,8 @@ pub enum Expr {
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Expr::Assignment { name, value } =>
+                write!(f, "(= {} {})", name.lexeme, value.to_string()),
             Expr::Binary { left, operator, right } =>
                 write!(f, "({} {} {})", operator.lexeme, left.to_string(), right.to_string()),
             Expr::Grouping { grouping } =>

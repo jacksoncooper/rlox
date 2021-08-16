@@ -59,6 +59,17 @@ impl Interpreter {
         }
     }
 
+    fn execute_expression(&mut self, expr: Expr) -> Result<(), Error>{
+        self.evaluate(expr)?;
+        Ok(())
+    }
+
+    fn execute_print(&mut self, expr: Expr) -> Result<(), Error>{
+        let value: Object = self.evaluate(expr)?;
+        println!("{}", value);
+        Ok(())
+    }
+
     fn execute_variable_declaration(&mut self, token: Token, initializer: Option<Expr>) -> Result<(), Error> {
         let value: Object = match initializer {
             Some(initializer) => {
@@ -73,11 +84,13 @@ impl Interpreter {
         Ok(())
     }
 
-    fn evaluate(&self, expr: Expr) -> Result<Object, Error> {
+    fn evaluate(&mut self, expr: Expr) -> Result<Object, Error> {
         // This function gobbles the syntax tree intentionally to emphasize that it
         // is "reduced" to a value, or consumed.
 
         match expr {
+            Expr::Assignment { name, value } =>
+                self.evaluate_assignment(name, *value),
             Expr::Binary { left, operator, right } =>
                 self.evaluate_binary(*left, operator, *right),
             Expr::Grouping { grouping } =>
@@ -87,26 +100,18 @@ impl Interpreter {
             Expr::Unary { operator, right } =>
                 self.evaluate_unary(operator, *right),
             Expr::Variable { name } =>
+                // This one has a side effect, so we need to pass it &mut self.
                 self.evaluate_variable(name),
         }
     }
 
-    fn evaluate_variable(&self, token: Token) -> Result<Object, Error> {
-        self.environment.get(&token)
+    fn evaluate_assignment(&mut self, name: Token, value: Expr) -> Result<Object, Error> {
+        let value: Object = self.evaluate(value)?;
+        self.environment.assign(&name, &value)?;
+        Ok(value)
     }
 
-    fn execute_expression(&self, expr: Expr) -> Result<(), Error>{
-        self.evaluate(expr)?;
-        Ok(())
-    }
-
-    fn execute_print(&self, expr: Expr) -> Result<(), Error>{
-        let value: Object = self.evaluate(expr)?;
-        println!("{}", value);
-        Ok(())
-    }
-
-    fn evaluate_binary(&self, left: Expr, operator: Token, right: Expr) -> Result<Object, Error> {
+    fn evaluate_binary(&mut self, left: Expr, operator: Token, right: Expr) -> Result<Object, Error> {
         let left: Object = self.evaluate(left)?;
         let right: Object = self.evaluate(right)?;
 
@@ -174,7 +179,7 @@ impl Interpreter {
         }
     }
 
-    fn evaluate_unary(&self, operator: Token, right: Expr) -> Result<Object, Error> {
+    fn evaluate_unary(&mut self, operator: Token, right: Expr) -> Result<Object, Error> {
         let right: Object = self.evaluate(right)?;
 
         match operator.token_type {
@@ -189,6 +194,10 @@ impl Interpreter {
             // A panic here indicates an error in the parser. [1] 
             _ => panic!("token is not a unary operator")
         }
+    }
+
+    fn evaluate_variable(&self, token: Token) -> Result<Object, Error> {
+        self.environment.get(&token)
     }
 }
 

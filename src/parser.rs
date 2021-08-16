@@ -14,9 +14,30 @@ pub struct Parser {
     statements: Option<Vec<Stmt>>
 }
 
-struct Panic {
+struct Error {
     token: Token,
-    message: String
+    message: String,
+    recoverable: Option<Expr>,
+}
+
+impl Error {
+    fn new(token: &Token, message: &str, recoverable: Option<Expr>) -> Error {
+        Error {
+            token: Token::clone(token),
+            message: message.to_string(),
+            recoverable,
+        }
+    }
+
+    fn recover(self) -> Result<Expr, Error> {
+        match self.recoverable {
+            Some(expr) => {
+                error::parse_error(&self.token, &self.message);
+                Ok(expr)
+            },
+            None => Err(self),
+        }
+    }
 }
 
 fn to_object(token: Token) -> Object {
@@ -63,7 +84,7 @@ impl Parser {
         }
     }
 
-    fn declaration(&mut self) -> Result<Stmt, Panic> {
+    fn declaration(&mut self) -> Result<Stmt, Error> {
         if self.advance_if(&[TT::Var]) {
             return self.variable_declaration();
         }
@@ -71,7 +92,7 @@ impl Parser {
         self.statement()
     }
 
-    fn variable_declaration(&mut self) -> Result<Stmt, Panic> {
+    fn variable_declaration(&mut self) -> Result<Stmt, Error> {
         let name: Token = self.advance();
 
         match name.token_type {
@@ -90,7 +111,7 @@ impl Parser {
         Ok(Stmt::Var { name, initializer })
     }
 
-    fn statement(&mut self) -> Result<Stmt, Panic> {
+    fn statement(&mut self) -> Result<Stmt, Error> {
         if self.advance_if(&[TT::Print]) {
             return self.print_statement();
         }
@@ -98,64 +119,77 @@ impl Parser {
         self.expression_statement()
     }
 
-    fn print_statement(&mut self) -> Result<Stmt, Panic> {
+    fn print_statement(&mut self) -> Result<Stmt, Error> {
         let value: Expr = self.expression()?;
         self.expect(TT::Semicolon, "Expect ';' after value.")?;
         Ok(Stmt::Print { expression: value })
     }
 
-    fn expression_statement(&mut self) -> Result<Stmt, Panic> {
+    fn expression_statement(&mut self) -> Result<Stmt, Error> {
         let expr: Expr = self.expression()?;
         self.expect(TT::Semicolon, "Expect ';' after expression.")?;
         Ok(Stmt::Expression { expression: expr })
     }
 
-    fn expression(&mut self) -> Result<Expr, Panic> {
-        self.equality()
+    fn expression(&mut self) -> Result<Expr, Error> {
+        self.assignment()
     }
 
-    fn binary<O>(&mut self, operators: &[TT], operand: &O) -> Result<Expr, Panic>
-        where O: Fn(&mut Self) -> Result<Expr, Panic>
-    {
-        // Parse a sequence of left-associative binary operators.
-        
-        let mut left: Expr = operand(self)?;
+    fn assignment(&mut self) -> Result<Expr, Error> {
+        let expr: Expr = self.equality()?;
 
-        while self.advance_if(operators) {
-            let operator: Token = self.previous();
-            let right: Expr = operand(self)?;
+        if self.advance_if(&[TT::Equal]) {
+            let equals: Token = self.previous();
 
-            left = Expr::Binary {
-                left: Box::new(left),
-                operator: operator,
-                right: Box::new(right)
-            }
+            let value: Expr = match self.assignment() {
+                Ok(value) => value,
+                Err(error) => error.recover()?,
+            };
+
+            return match expr {
+                Expr::Variable { name } =>
+                    Ok(Expr::Assignment { name, value: Box::new(value) }),
+
+                // An invalid assignment target is a recoverable error! Don't
+                // panic! TODO: Because Rust doesn't have exceptions, and I'm
+                // not using global mutable state, which I'm not even sure Rust
+                // supports, this Lox implementation excises the bad target and
+                // replaces it with its well-formed right operand. I don't
+                // fully understand why we don't immediately synchronize. Each
+                // operand to each assignment is fully parsed on the way down.
+                // We get to report multiple invalid assignment targets on the
+                // way up, though. Bob's implementation kicks up the malformed
+                // assignment target but never evaluates the AST. Mine does the
+                // opposite.
+
+                _ => Err(Error::new(&equals, "Invalid assignment target.", Some(value))),
+            };
         }
 
-        Ok(left)
+        Ok(expr)
     }
 
-    fn equality(&mut self) -> Result<Expr, Panic> {
+    fn equality(&mut self) -> Result<Expr, Error> {
         let operators = [TT::BangEqual, TT::EqualEqual];
         self.binary(&operators, &Parser::comparison)
     }
 
-    fn comparison(&mut self) -> Result<Expr, Panic> {
+    fn comparison(&mut self) -> Result<Expr, Error> {
         let operators = [TT::Greater, TT::GreaterEqual, TT::Less, TT::LessEqual];
         self.binary(&operators, &Parser::term)
     }
 
-    fn term(&mut self) -> Result<Expr, Panic> {
+    fn term(&mut self) -> Result<Expr, Error> {
         let operators = [TT::Minus, TT::Plus];
         self.binary(&operators, &Parser::factor)
     }
 
-    fn factor(&mut self) -> Result<Expr, Panic> {
+    fn factor(&mut self) -> Result<Expr, Error> {
         let operators = [TT::Slash, TT::Star];
         self.binary(&operators, &Parser::unary)
     }
 
-    fn unary(&mut self) -> Result<Expr, Panic> {
+    fn unary(&mut self) -> Result<Expr, Error> {
         // Parse a sequence of right-associative unary operators. If the final
         // primary expression panics, the whole unary expression panics.
 
@@ -174,7 +208,7 @@ impl Parser {
         self.primary()
     }
 
-    fn primary(&mut self) -> Result<Expr, Panic> {
+    fn primary(&mut self) -> Result<Expr, Error> {
         let token: Token = self.peek();
         let token_type: TT = TT::clone(&token.token_type);
 
@@ -196,6 +230,27 @@ impl Parser {
         }
 
         Err(self.panic_here("Expect expression."))
+    }
+
+    fn binary<O>(&mut self, operators: &[TT], operand: &O) -> Result<Expr, Error>
+        where O: Fn(&mut Self) -> Result<Expr, Error>
+    {
+        // Parse a sequence of left-associative binary operators.
+        
+        let mut left: Expr = operand(self)?;
+
+        while self.advance_if(operators) {
+            let operator: Token = self.previous();
+            let right: Expr = operand(self)?;
+
+            left = Expr::Binary {
+                left: Box::new(left),
+                operator: operator,
+                right: Box::new(right)
+            }
+        }
+
+        Ok(left)
     }
 
     fn is_at_end(&self) -> bool {
@@ -234,7 +289,7 @@ impl Parser {
         false
     }
 
-    fn expect(&mut self, token_type: TT, message: &str) -> Result<Token, Panic> {
+    fn expect(&mut self, token_type: TT, message: &str) -> Result<Token, Error> {
         if self.check(TT::clone(&token_type)) {
             return Ok(self.advance());
         }
@@ -242,11 +297,8 @@ impl Parser {
         Err(self.panic_here(message))
     }
 
-    fn panic_here(&self, message: &str) -> Panic {
-        Panic {
-            token: Token::clone(&self.peek()),
-            message: message.to_string()
-        }
+    fn panic_here(&self, message: &str) -> Error {
+        Error::new(&self.peek(), message, None)
     }
 
     fn synchronize(&mut self) {
