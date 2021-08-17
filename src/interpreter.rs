@@ -1,15 +1,17 @@
-use environment::Environment;
-use object::Object;
-
 use crate::error;
 use crate::parser::expression::Expr;
 use crate::parser::statement::Stmt;
 use crate::scanner::token::Token;
 use crate::scanner::token_type::TokenType as TT;
 
+use environment as env;
+use object::Object;
+
 mod environment;
 
 pub mod object;
+
+#[derive(Debug)]
 
 struct Error {
     token: Token,
@@ -26,16 +28,14 @@ impl Error {
 }
 
 pub struct Interpreter {
-    environment: Environment
+    local: env::Environment,
 }
 
 impl Interpreter {
     pub fn new() -> Interpreter {
-        Interpreter { environment: Environment::new() }
+        Interpreter { local: env::new() }
     }
-}
 
-impl Interpreter {
     pub fn interpret(&mut self, statements: Vec<Stmt>) -> Result<(), error::LoxError> {
         for statement in statements {
             if let Err(error) = self.execute(statement) {
@@ -50,6 +50,8 @@ impl Interpreter {
 
     fn execute(&mut self, stmt: Stmt) -> Result<(), Error> {
         match stmt {
+            Stmt::Block { statements } =>
+                self.execute_block(statements),
             Stmt::Expression { expression } =>
                 self.execute_expression(expression),
             Stmt::Print { expression } =>
@@ -57,6 +59,29 @@ impl Interpreter {
             Stmt::Var { name, initializer } =>
                 self.execute_variable_declaration(name, initializer),
         }
+    }
+
+    fn execute_block(&mut self, statements: Vec<Stmt>) -> Result<(), Error> {
+        let old_local = env::copy(&self.local);
+
+        let mut new_local = env::new();
+        env::link(&mut new_local, &old_local);
+
+        self.local = new_local;
+
+        for statement in statements {
+            let status = self.execute(statement);
+
+            // If the statement is in error, restore the previous environment
+            // before bubbling the runtime error. There's no reason to do this
+            // but it makes me feel nice.
+
+            if status.is_err() { self.local = old_local; return status; }
+        }
+    
+        self.local = old_local;
+
+        Ok(())
     }
 
     fn execute_expression(&mut self, expr: Expr) -> Result<(), Error>{
@@ -79,14 +104,14 @@ impl Interpreter {
             None => Object::Nil,
         };
 
-        self.environment.define(&token, &value);
+        env::define(&mut self.local, &token, &value);
 
         Ok(())
     }
 
     fn evaluate(&mut self, expr: Expr) -> Result<Object, Error> {
-        // This function gobbles the syntax tree intentionally to emphasize that it
-        // is "reduced" to a value, or consumed.
+        // This function gobbles the syntax tree intentionally to emphasize
+        // that it is "reduced" to a value, or consumed.
 
         match expr {
             Expr::Assignment { name, value } =>
@@ -107,7 +132,7 @@ impl Interpreter {
 
     fn evaluate_assignment(&mut self, name: Token, value: Expr) -> Result<Object, Error> {
         let value: Object = self.evaluate(value)?;
-        self.environment.assign(&name, &value)?;
+        env::assign(&mut self.local, &name, &value)?;
         Ok(value)
     }
 
@@ -124,31 +149,31 @@ impl Interpreter {
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Boolean(left > right)),
-                    _ => Err(Error::new(&operator, "Operands to (>) must be two numbers.")),
+                    _ => Err(Error::new(&operator, "Operands must be numbers.")),
                 },
             TT::GreaterEqual =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Boolean(left >= right)),
-                    _ => Err(Error::new(&operator, "Operands to (>=) must be two numbers.")),
+                    _ => Err(Error::new(&operator, "Operands must be numbers.")),
                 },
             TT::Less =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Boolean(left < right)),
-                    _ => Err(Error::new(&operator, "Operands to (<) must be two numbers.")),
+                    _ => Err(Error::new(&operator, "Operands must be numbers.")),
                 },
             TT::LessEqual =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Boolean(left <= right)),
-                    _ => Err(Error::new(&operator, "Operands to (<=) must be two numbers.")),
+                    _ => Err(Error::new(&operator, "Operands must be numbers.")),
                 },
             TT::Minus =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Number(left - right)),
-                    _ => Err(Error::new(&operator, "Operands to (-) must be two numbers.")),
+                    _ => Err(Error::new(&operator, "Operands must be numbers.")),
                 },
             TT::Plus =>
                 match (left, right) {
@@ -158,20 +183,20 @@ impl Interpreter {
                         left.push_str(&right);
                         Ok(Object::String(left))
                     }
-                    _ => Err(Error::new(&operator, "Operands to (+) must be two numbers or two strings.")),
+                    _ => Err(Error::new(&operator, "Operands must be two numbers or two strings.")),
                 }
             TT::Slash =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         if right != 0 as f64 { Ok(Object::Number(left / right)) }
                         else { Err(Error::new(&operator, "Division by zero.")) }
-                    _ => Err(Error::new(&operator, "Operands to (/) must be two numbers.")),
+                    _ => Err(Error::new(&operator, "Operands must be numbers.")),
                 },
             TT::Star =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Number(left * right)),
-                    _ => Err(Error::new(&operator, "Operands to (*) must be two numbers.")),
+                    _ => Err(Error::new(&operator, "Operands must be numbers.")),
                 },
 
             // A panic here indicates an error in the parser.
@@ -188,7 +213,7 @@ impl Interpreter {
             TT::Minus =>
                 match right {
                     Object::Number(float) => Ok(Object::Number(-float)),
-                    _ => Err(Error::new(&operator, "Operand to (-) must be a number.")),
+                    _ => Err(Error::new(&operator, "Operand must be a number.")),
                 },
             
             // A panic here indicates an error in the parser. [1] 
@@ -197,7 +222,7 @@ impl Interpreter {
     }
 
     fn evaluate_variable(&self, token: Token) -> Result<Object, Error> {
-        self.environment.get(&token)
+        env::get(&self.local, &token)
     }
 }
 

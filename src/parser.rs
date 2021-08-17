@@ -21,9 +21,9 @@ struct Error {
 }
 
 impl Error {
-    fn new(token: &Token, message: &str, recoverable: Option<Expr>) -> Error {
+    fn new(token: Token, message: &str, recoverable: Option<Expr>) -> Error {
         Error {
-            token: Token::clone(token),
+            token,
             message: message.to_string(),
             recoverable,
         }
@@ -93,10 +93,12 @@ impl Parser {
     }
 
     fn variable_declaration(&mut self) -> Result<Stmt, Error> {
-        let name: Token = self.advance();
+        let name: Token = self.peek();
 
         match name.token_type {
-            TT::Identifier(_) => (),
+            TT::Identifier(_) => {
+                self.advance();
+            }
             _ => return Err(self.panic_here("Expect variable name.")),
         }
 
@@ -116,6 +118,10 @@ impl Parser {
             return self.print_statement();
         }
 
+        if self.advance_if(&[TT::LeftBrace]) {
+            return Ok(Stmt::Block { statements: self.block()? });
+        }
+
         self.expression_statement()
     }
 
@@ -123,6 +129,18 @@ impl Parser {
         let value: Expr = self.expression()?;
         self.expect(TT::Semicolon, "Expect ';' after value.")?;
         Ok(Stmt::Print { expression: value })
+    }
+
+    fn block(&mut self) -> Result<Vec<Stmt>, Error> {
+        let mut statements: Vec<Stmt> = Vec::new();
+
+        while !self.check(&TT::RightBrace) && !self.is_at_end() {
+            statements.push(self.declaration()?);
+        }
+
+        self.expect(TT::RightBrace, "Expect '}' after block.")?;
+
+        Ok(statements)
     }
 
     fn expression_statement(&mut self) -> Result<Stmt, Error> {
@@ -148,21 +166,13 @@ impl Parser {
 
             return match expr {
                 Expr::Variable { name } =>
-                    Ok(Expr::Assignment { name, value: Box::new(value) }),
-
-                // An invalid assignment target is a recoverable error! Don't
-                // panic! TODO: Because Rust doesn't have exceptions, and I'm
-                // not using global mutable state, which I'm not even sure Rust
-                // supports, this Lox implementation excises the bad target and
-                // replaces it with its well-formed right operand. I don't
-                // fully understand why we don't immediately synchronize. Each
-                // operand to each assignment is fully parsed on the way down.
-                // We get to report multiple invalid assignment targets on the
-                // way up, though. Bob's implementation kicks up the malformed
-                // assignment target but never evaluates the AST. Mine does the
-                // opposite.
-
-                _ => Err(Error::new(&equals, "Invalid assignment target.", Some(value))),
+                    Ok(Expr::Assignment { name, value: Box::new(value) }), // [1]
+                _ =>
+                    Err(Error::new(
+                        equals,
+                        "Invalid assignment target.",
+                        Some(value)
+                    )),
             };
         }
 
@@ -200,7 +210,7 @@ impl Parser {
             let right: Expr = self.unary()?;
 
             return Ok(Expr::Unary {
-                operator: operator,
+                operator,
                 right: Box::new(right)
             })
         }
@@ -210,19 +220,24 @@ impl Parser {
 
     fn primary(&mut self) -> Result<Expr, Error> {
         let token: Token = self.peek();
-        let token_type: TT = TT::clone(&token.token_type);
 
-        if let TT::Identifier(_) = token_type {
+        if let TT::Identifier(_) = token.token_type {
             self.advance();
-            return Ok(Expr::Variable { name: token });
+
+            return Ok(Expr::Variable {
+                name: token,
+            });
         }
 
-        if let TT::False | TT::True | TT::Number(_) | TT::String(_) | TT::Nil = token_type {
+        if let TT::False | TT::True | TT::Number(_) | TT::String(_) | TT::Nil = token.token_type {
             self.advance();
-            return Ok(Expr::Literal { value: to_object(token) });
+
+            return Ok(Expr::Literal {
+                value: to_object(token),
+            });
         }
 
-        if let TT::LeftParen = token_type {
+        if let TT::LeftParen = token.token_type {
             self.advance();
             let group: Expr = self.expression()?;
             self.expect(TT::RightParen, "Expect ')' after expression.")?;
@@ -245,7 +260,7 @@ impl Parser {
 
             left = Expr::Binary {
                 left: Box::new(left),
-                operator: operator,
+                operator,
                 right: Box::new(right)
             }
         }
@@ -265,9 +280,9 @@ impl Parser {
         Token::clone(&self.tokens[self.current - 1])
     }
 
-    fn check(&self, token_type: TT) -> bool {
+    fn check(&self, token_type: &TT) -> bool {
         if self.is_at_end() { return false; }
-        return self.peek().token_type == token_type;
+        return self.peek().token_type == *token_type;
     }
 
     fn advance(&mut self) -> Token {
@@ -280,7 +295,7 @@ impl Parser {
 
     fn advance_if(&mut self, token_types: &[TT]) -> bool {
         for token_type in token_types {
-            if self.check(TT::clone(token_type)) {
+            if self.check(token_type) {
                 self.advance();
                 return true;
             }
@@ -290,7 +305,7 @@ impl Parser {
     }
 
     fn expect(&mut self, token_type: TT, message: &str) -> Result<Token, Error> {
-        if self.check(TT::clone(&token_type)) {
+        if self.check(&token_type) {
             return Ok(self.advance());
         }
 
@@ -298,16 +313,18 @@ impl Parser {
     }
 
     fn panic_here(&self, message: &str) -> Error {
-        Error::new(&self.peek(), message, None)
+        Error::new(self.peek(), message, None)
     }
 
     fn synchronize(&mut self) {
+        // Discard the Token that caused the panic.
+        self.advance();
+
         while !self.is_at_end() {
             // If the current Token is a semicolon, the next Token starts a new
             // statement.
 
-            if self.check(TT::Semicolon) {
-                self.advance();
+            if self.previous().token_type == TT::Semicolon {
                 return;
             }
 
@@ -326,3 +343,15 @@ impl Parser {
         }
     }
 }
+
+// [1]
+
+// An invalid assignment target is a recoverable error! Don't panic! TODO:
+// Because Rust doesn't have exceptions, and I'm not using global mutable
+// state, which I'm not even sure Rust supports, this Lox implementation
+// excises the bad target and replaces it with its well-formed right operand. I
+// don't fully understand why we don't immediately synchronize. Each operand to
+// each assignment is fully parsed on the way down. We get to report multiple
+// invalid assignment targets on the way up, though. Bob's implementation kicks
+// up the malformed assignment target but never evaluates the AST. Mine does
+// the opposite.

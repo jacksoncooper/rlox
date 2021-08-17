@@ -1,0 +1,9 @@
+#!/usr/bin/env zsh
+
+cargo install --path .
+
+harness=/Users/jackson/Dropbox/projects/craftinginterpreters/tool/bin/test.dart
+interpreter=chap08_statements
+my_lox=/Users/jackson/.cargo/bin/rlox
+
+dart $harness $interpreter --interpreter $my_lox

@@ -69,17 +69,17 @@ fn run(source: &str) -> Result<(), LoxError> {
     scanner.scan_tokens();
     let tokens = scanner.consume()?;
 
-    for token in tokens.iter() {
-        println!("{:?}", token);
-    }
+    // for token in tokens.iter() {
+    //     println!("{:?}", token);
+    // }
 
     let mut parser = Parser::new(tokens);
     parser.parse();
     let statements = parser.consume()?;
 
-    for statement in statements.iter() {
-        println!("{}", statement);
-    }
+    // for statement in statements.iter() {
+    //     println!("{}", statement);
+    // }
 
     let mut interpreter = Interpreter::new();
     interpreter.interpret(statements)?;
