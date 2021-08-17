@@ -1,5 +1,5 @@
-use crate::scanner::token::Token;
-use crate::scanner::token_type::TokenType as TT;
+use crate::token::Token;
+use crate::token_type::TokenType as TT;
 
 pub enum LoxError {
     ScanError,

@@ -2,11 +2,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::scanner::token::Token;
-use crate::scanner::token_type::TokenType as TT;
-
-use super::Error;
-use super::Object;
+use crate::interpreter::Error;
+use crate::object::Object;
+use crate::token::Token;
+use crate::token_type::TokenType as TT;
 
 // TODO:
 
@@ -37,7 +36,7 @@ pub struct Bindings {
     values: HashMap<String, Object>,
 }
 
-pub(super) fn new() -> Environment {
+pub fn new() -> Environment {
     Rc::new(RefCell::new(
         Bindings {
             enclosing: None,
@@ -46,15 +45,15 @@ pub(super) fn new() -> Environment {
     ))
 }
 
-pub(super) fn copy(local: &Environment) -> Environment {
+pub fn copy(local: &Environment) -> Environment {
     Rc::clone(local)
 }
 
-pub(super) fn link(local: &mut Environment, enclosing: &Environment) {
+pub fn link(local: &mut Environment, enclosing: &Environment) {
     local.borrow_mut().enclosing = Some(Rc::clone(enclosing));
 }
 
-pub(super) fn define(local: &mut Environment, token: &Token, value: &Object) {
+pub fn define(local: &mut Environment, token: &Token, value: &Object) {
     match token.token_type {
         TT::Identifier(ref name) => {
             local.borrow_mut().values.insert(
@@ -67,7 +66,7 @@ pub(super) fn define(local: &mut Environment, token: &Token, value: &Object) {
     }
 }
 
-pub(super) fn assign(local: &mut Environment, token: &Token, value: &Object) -> Result<(), Error> {
+pub fn assign(local: &mut Environment, token: &Token, value: &Object) -> Result<(), Error> {
     match token.token_type {
         TT::Identifier(ref name) =>
             if local.borrow().values.contains_key(name) {
@@ -94,7 +93,7 @@ pub(super) fn assign(local: &mut Environment, token: &Token, value: &Object) -> 
     }
 }
 
-pub(super) fn get(local: &Environment, token: &Token) -> Result<Object, Error> {
+pub fn get(local: &Environment, token: &Token) -> Result<Object, Error> {
     match token.token_type {
         TT::Identifier(ref name) =>
             match local.borrow().values.get(name) {
@@ -117,12 +116,8 @@ pub(super) fn get(local: &Environment, token: &Token) -> Result<Object, Error> {
 }
 
 #[cfg(test)]
-
 mod tests {
     use super::*;
-
-    use crate::scanner::token::Token;
-    use crate::scanner::token_type::TokenType as TT;
 
     #[test]
     fn look_in_enclosing() -> Result<(), Error> {

@@ -1,25 +1,20 @@
+use crate::environment as env;
 use crate::error;
-use crate::parser::expression::Expr;
-use crate::parser::statement::Stmt;
-use crate::scanner::token::Token;
-use crate::scanner::token_type::TokenType as TT;
-
-use environment as env;
-use object::Object;
-
-mod environment;
-
-pub mod object;
+use crate::expression::Expr;
+use crate::object::Object;
+use crate::statement::Stmt;
+use crate::token::Token;
+use crate::token_type::TokenType as TT;
 
 #[derive(Debug)]
 
-struct Error {
+pub struct Error {
     token: Token,
     message: String,
 }
 
 impl Error {
-    fn new(token: &Token, message: &str) -> Error {
+    pub fn new(token: &Token, message: &str) -> Error {
         Error {
             token: Token::clone(token),
             message: message.to_string()

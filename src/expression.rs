@@ -1,7 +1,7 @@
 use std::fmt;
 
-use crate::interpreter::object::Object;
-use crate::scanner::token::Token;
+use crate::object::Object;
+use crate::token::Token;
 
 #[derive(Debug)]
 
@@ -18,15 +18,15 @@ impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expr::Assignment { name, value } =>
-                write!(f, "(= {} {})", name.lexeme, value.to_string()),
+                write!(f, "(= {} {})", name.lexeme, value),
             Expr::Binary { left, operator, right } =>
-                write!(f, "({} {} {})", operator.lexeme, left.to_string(), right.to_string()),
+                write!(f, "({} {} {})", operator.lexeme, left, right),
             Expr::Grouping { grouping } =>
-                write!(f, "(group {})", grouping.to_string()),
+                write!(f, "(group {})", grouping),
             Expr::Literal { value } =>
-                write!(f, "{}", value.to_string()),
+                write!(f, "{}", value),
             Expr::Unary { operator, right } =>
-                write!(f, "({} {})", operator.lexeme, right.to_string()),
+                write!(f, "({} {})", operator.lexeme, right),
             Expr::Variable { name } =>
                 write!(f, "(var {})", name.lexeme),
         }

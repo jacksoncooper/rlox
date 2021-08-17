@@ -1,7 +1,7 @@
 use std::fmt;
 
-use crate::parser::expression::Expr;
-use crate::scanner::token::Token;
+use crate::expression::Expr;
+use crate::token::Token;
 
 #[derive(Debug)]
 
@@ -16,22 +16,22 @@ impl fmt::Display for Stmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Stmt::Block { statements } => {
-                let mut readable: String = String::from("(block");
+                let mut readable = String::from("(block");
                 for statement in statements {
                     readable.push(' ');
-                    readable.push_str(&statement.to_string());
+                    readable.push_str(statement.to_string().as_str());
                 }
                 readable.push(')');
                 write!(f, "{}", readable)
             },
             Stmt::Expression { expression } =>
-                write!(f, "(expr {})", expression.to_string()),
+                write!(f, "(expr {})", expression),
             Stmt::Print { expression } =>
-                write!(f, "(print {})", expression.to_string()),
+                write!(f, "(print {})", expression),
             Stmt::Var { name, initializer } =>
                 match initializer {
                     Some(initializer) =>
-                        write!(f, "(decl {} {})", name.lexeme, initializer.to_string()),
+                        write!(f, "(decl {} {})", name.lexeme, initializer),
                     None =>
                         write!(f, "(decl {})", name.lexeme),
                 },

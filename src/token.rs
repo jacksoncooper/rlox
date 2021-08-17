@@ -1,4 +1,4 @@
-use crate::scanner::token_type::TokenType;
+use crate::token_type::TokenType;
 
 #[derive(Clone, Debug)]
 

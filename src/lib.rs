@@ -1,6 +1,12 @@
 pub mod lox;
-pub mod error;
 
-pub mod scanner;
-pub mod parser;
-pub mod interpreter;
+mod interpreter;
+mod environment;
+mod expression;
+mod error;
+mod object;
+mod parser;
+mod token;
+mod token_type;
+mod scanner;
+mod statement;
