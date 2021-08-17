@@ -42,7 +42,7 @@ impl Scanner {
 
     pub fn consume(self) -> Result<Vec<Token>, error::LoxError> {
         if self.had_error {
-            Err(error::LoxError::ScanError)
+            Err(error::LoxError::Scan)
         } else {
             Ok(self.tokens)
         }
@@ -93,7 +93,7 @@ impl Scanner {
 
     fn peek_next(&self) -> char {
         if self.current + 1 >= self.source.len() { return '\0'; }
-        return self.source[self.current + 1];
+        self.source[self.current + 1]
     }
 
     fn advance(&mut self) -> char {

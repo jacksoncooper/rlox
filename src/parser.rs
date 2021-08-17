@@ -77,7 +77,7 @@ impl Parser {
     pub fn consume(self) -> Result<Vec<Stmt>, error::LoxError> {
         match self.statements {
             Some(statements) => Ok(statements),
-            None => Err(error::LoxError::ParseError)
+            None => Err(error::LoxError::Parse)
         }
     }
 
@@ -269,6 +269,12 @@ impl Parser {
         self.peek().token_type == TT::EndOfFile
     }
 
+    // TODO: The functions peek() and previous() are indicative of a design
+    // problem. Cloning a Token can be very expensive when that Token contains
+    // a literal. A rewrite should allocate Tokens on the heap and wrap them in
+    // a reference-counting type like Rc. The clone() is to prevent the parser
+    // from mutating its state and invalidating the reference.
+
     fn peek(&self) -> Token {
         Token::clone(&self.tokens[self.current])
     }
@@ -279,7 +285,7 @@ impl Parser {
 
     fn check(&self, token_type: &TT) -> bool {
         if self.is_at_end() { return false; }
-        return self.peek().token_type == *token_type;
+        self.peek().token_type == *token_type
     }
 
     fn advance(&mut self) -> Token {

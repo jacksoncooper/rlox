@@ -2,9 +2,7 @@ use crate::token::Token;
 use crate::token_type::TokenType as TT;
 
 pub enum LoxError {
-    ScanError,
-    ParseError,
-    InterpretError,
+    Scan, Parse, Interpret,
 }
 
 pub fn report(line: usize, location: &str, message: &str) {

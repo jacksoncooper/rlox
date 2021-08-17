@@ -21,13 +21,13 @@ pub fn interact() {
 fn lox() -> Result<(), i32> {
     let args: Vec<String> = env::args().skip(1).collect();
 
-    if args.len() > 1 {
-        println!("usage: jlox [script]");
-        Err(64)
-    } else if args.len() == 1 {
-        run_file(&args[0])
-    } else {
-        run_prompt()
+    match args.len() {
+        0 => run_prompt(),
+        1 => run_file(&args[0]),
+        _ => {
+            println!("usage: jlox [script]");
+            Err(64)
+        }
     }
 }
 
@@ -36,10 +36,10 @@ fn run_file(path: &str) -> Result<(), i32> {
     let status = run(&contents);
 
     match status {
-        Err(LoxError::ScanError)      => Err(65),
-        Err(LoxError::ParseError)     => Err(65),
-        Err(LoxError::InterpretError) => Err(70),
-        Ok(())                        => Ok(()),
+        Err(LoxError::Scan)      => Err(65),
+        Err(LoxError::Parse)     => Err(65),
+        Err(LoxError::Interpret) => Err(70),
+        Ok(())                   => Ok(()),
     }
 }
 
@@ -60,7 +60,7 @@ fn run_prompt() -> Result<(), i32> {
         }
 
         // Absorb any error from the scanner, parser, or interpreter.
-        let _: Result<(), LoxError> = run(&line);
+        let _: Result<(), LoxError> = run(line);
     }
 }
 

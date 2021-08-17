@@ -36,7 +36,7 @@ impl Interpreter {
             if let Err(error) = self.execute(statement) {
                 error::runtime_error(&error.token, &error.message);
                 // A runtime error kills the interpreter.
-                return Err(error::LoxError::InterpretError);
+                return Err(error::LoxError::Interpret);
             }
         }
 
@@ -131,6 +131,8 @@ impl Interpreter {
         Ok(value)
     }
 
+    #[allow(clippy::float_cmp)]
+
     fn evaluate_binary(&mut self, left: Expr, operator: Token, right: Expr) -> Result<Object, Error> {
         let left: Object = self.evaluate(left)?;
         let right: Object = self.evaluate(right)?;
@@ -183,8 +185,14 @@ impl Interpreter {
             TT::Slash =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
-                        if right != 0 as f64 { Ok(Object::Number(left / right)) }
-                        else { Err(Error::new(&operator, "Division by zero.")) }
+                        // TODO: Not sure if this encompasses all f64
+                        // representations of zero!
+
+                        if right != 0 as f64 {
+                            Ok(Object::Number(left / right))
+                        } else {
+                            Err(Error::new(&operator, "Division by zero."))
+                        }
                     _ => Err(Error::new(&operator, "Operands must be numbers.")),
                 },
             TT::Star =>
@@ -220,6 +228,8 @@ impl Interpreter {
         env::get(&self.local, &token)
     }
 }
+
+#[allow(clippy::match_like_matches_macro)]
 
 fn is_truthy(operand: Object) -> bool {
     // We're following Ruby because Ruby is pretty. 'false' and 'nil' are
