@@ -2,7 +2,6 @@ use crate::error;
 use crate::token::Token;
 use crate::token_type::TokenType as TT;
 
-
 pub struct Scanner {
     source: Vec<char>,
     tokens: Vec<Token>,
@@ -37,7 +36,6 @@ impl Scanner {
         );
 
         self.tokens.push(end_of_file);
-
     }
 
     pub fn consume(self) -> Result<Vec<Token>, error::LoxError> {
@@ -182,6 +180,9 @@ impl Scanner {
         }
 
         let identifier = self.collect_lexeme(self.start, self.current);
+
+        // TODO: This is slow! Replace with HashMap when you can figure how
+        // to allocate it statically.
 
         let token = match identifier.as_str() {
             "and"    => TT::And,

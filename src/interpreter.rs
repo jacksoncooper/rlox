@@ -16,6 +16,7 @@ pub struct Error {
 impl Error {
     pub fn new(token: &Token, message: &str) -> Error {
         Error {
+            // TODO: Just take ownership of the Token. No need to clone.
             token: Token::clone(token),
             message: message.to_string()
         }
@@ -31,7 +32,8 @@ impl Interpreter {
         Interpreter { local: env::new() }
     }
 
-    pub fn interpret(&mut self, statements: Vec<Stmt>) -> Result<(), error::LoxError> {
+    pub fn interpret(&mut self, statements: Vec<Stmt>) -> Result<(), error::LoxError>
+    {
         for statement in statements {
             if let Err(error) = self.execute(statement) {
                 error::runtime_error(&error.token, &error.message);
@@ -49,6 +51,8 @@ impl Interpreter {
                 self.execute_block(statements),
             Stmt::Expression { expression } =>
                 self.execute_expression(expression),
+            Stmt::If { condition, then_branch, else_branch } =>
+                self.execute_if(condition, *then_branch, else_branch.map(|b| *b)),
             Stmt::Print { expression } =>
                 self.execute_print(expression),
             Stmt::Var { name, initializer } =>
@@ -84,13 +88,35 @@ impl Interpreter {
         Ok(())
     }
 
+    fn execute_if(
+        &mut self,
+        condition: Expr,
+        then_branch: Stmt, else_branch: Option<Stmt>
+    ) -> Result<(), Error> {
+        let go_then = is_truthy(self.evaluate(condition)?);
+        
+        if go_then {
+            self.execute(then_branch)?;
+        } else {
+            if let Some(statement) = else_branch {
+                self.execute(statement)?;
+            }
+        }
+
+        Ok(())
+    }
+
     fn execute_print(&mut self, expr: Expr) -> Result<(), Error>{
         let value: Object = self.evaluate(expr)?;
         println!("{}", value);
         Ok(())
     }
 
-    fn execute_variable_declaration(&mut self, token: Token, initializer: Option<Expr>) -> Result<(), Error> {
+    fn execute_variable_declaration(
+        &mut self,
+        token: Token,
+        initializer: Option<Expr>
+    ) -> Result<(), Error> {
         let value: Object = match initializer {
             Some(initializer) => {
                 let value: Object = self.evaluate(initializer)?;
@@ -125,7 +151,10 @@ impl Interpreter {
         }
     }
 
-    fn evaluate_assignment(&mut self, name: Token, value: Expr) -> Result<Object, Error> {
+    fn evaluate_assignment(
+        &mut self,
+        name: Token, value: Expr
+    ) -> Result<Object, Error> {
         let value: Object = self.evaluate(value)?;
         env::assign(&mut self.local, &name, &value)?;
         Ok(value)
@@ -133,9 +162,12 @@ impl Interpreter {
 
     #[allow(clippy::float_cmp)]
 
-    fn evaluate_binary(&mut self, left: Expr, operator: Token, right: Expr) -> Result<Object, Error> {
-        let left: Object = self.evaluate(left)?;
-        let right: Object = self.evaluate(right)?;
+    fn evaluate_binary(
+        &mut self,
+        left: Expr, operator: Token, right: Expr
+    ) -> Result<Object, Error> {
+        let left  = self.evaluate(left)?;
+        let right = self.evaluate(right)?;
 
         match operator.token_type {
             TT::BangEqual =>
@@ -180,7 +212,10 @@ impl Interpreter {
                         left.push_str(&right);
                         Ok(Object::String(left))
                     }
-                    _ => Err(Error::new(&operator, "Operands must be two numbers or two strings.")),
+                    _ => Err(Error::new(
+                            &operator,
+                            "Operands must be two numbers or two strings."
+                        )),
                 }
             TT::Slash =>
                 match (left, right) {
@@ -207,7 +242,10 @@ impl Interpreter {
         }
     }
 
-    fn evaluate_unary(&mut self, operator: Token, right: Expr) -> Result<Object, Error> {
+    fn evaluate_unary(
+        &mut self,
+        operator: Token, right: Expr
+    ) -> Result<Object, Error> {
         let right: Object = self.evaluate(right)?;
 
         match operator.token_type {

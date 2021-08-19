@@ -101,9 +101,7 @@ impl Parser {
 
         let initializer = if self.advance_if(&[TT::Equal]) {
             Some(self.expression()?)
-        } else {
-            None
-        };
+        } else { None };
     
         self.expect(TT::Semicolon, "Expect ';' after variable declaration.")?;
 
@@ -111,21 +109,33 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Stmt, Error> {
-        if self.advance_if(&[TT::Print]) {
-            return self.print_statement();
+        if self.advance_if(&[TT::If]) {
+            return self.if_statement();
         }
 
         if self.advance_if(&[TT::LeftBrace]) {
             return Ok(Stmt::Block { statements: self.block()? });
         }
 
+        if self.advance_if(&[TT::Print]) {
+            return self.print_statement();
+        }
+
         self.expression_statement()
     }
 
-    fn print_statement(&mut self) -> Result<Stmt, Error> {
-        let value: Expr = self.expression()?;
-        self.expect(TT::Semicolon, "Expect ';' after value.")?;
-        Ok(Stmt::Print { expression: value })
+    fn if_statement(&mut self) -> Result<Stmt, Error> {
+        self.expect(TT::LeftParen, "Expect '(' after 'if'.")?;
+        let condition = self.expression()?;
+        self.expect(TT::RightParen, "Expect ')' after condition.")?;
+
+        let then_branch = Box::new(self.statement()?);
+
+        let else_branch = if self.advance_if(&[TT::Else]) {
+            Some(Box::new(self.statement()?))
+        } else { None };
+
+        Ok(Stmt::If { condition, then_branch, else_branch })
     }
 
     fn block(&mut self) -> Result<Vec<Stmt>, Error> {
@@ -138,6 +148,12 @@ impl Parser {
         self.expect(TT::RightBrace, "Expect '}' after block.")?;
 
         Ok(statements)
+    }
+
+    fn print_statement(&mut self) -> Result<Stmt, Error> {
+        let value: Expr = self.expression()?;
+        self.expect(TT::Semicolon, "Expect ';' after value.")?;
+        Ok(Stmt::Print { expression: value })
     }
 
     fn expression_statement(&mut self) -> Result<Stmt, Error> {
@@ -226,7 +242,11 @@ impl Parser {
             });
         }
 
-        if let TT::False | TT::True | TT::Number(_) | TT::String(_) | TT::Nil = token.token_type {
+        if let TT::False     | TT::True
+            |  TT::Number(_) | TT::String(_)
+            |  TT::Nil
+            = token.token_type {
+
             self.advance();
 
             return Ok(Expr::Literal {
@@ -327,9 +347,7 @@ impl Parser {
             // If the current Token is a semicolon, the next Token starts a new
             // statement.
 
-            if self.previous().token_type == TT::Semicolon {
-                return;
-            }
+            if self.previous().token_type == TT::Semicolon { return; }
 
             // Otherwise the Token may be a keyword which marks the start of a
             // statement.
@@ -338,9 +356,9 @@ impl Parser {
 
             // TODO: This is like advance_if() without the advance.
 
-            if let TT::Class | TT::For | TT::Fun | TT::If | TT::Print | TT::Return | TT::Var | TT::While = token_type {
-                return;
-            }
+            if let TT::Class  | TT::For | TT::Fun   | TT::If | TT::Print
+                |  TT::Return | TT::Var | TT::While
+                = token_type { return; }
 
             self.advance();
         }

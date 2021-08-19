@@ -8,6 +8,7 @@ use crate::token::Token;
 pub enum Stmt {
     Block { statements: Vec<Stmt> },
     Expression { expression: Expr },
+    If { condition: Expr, then_branch: Box<Stmt>, else_branch: Option<Box<Stmt>> },
     Print { expression: Expr },
     Var { name: Token, initializer: Option<Expr> },
 }
@@ -26,6 +27,13 @@ impl fmt::Display for Stmt {
             },
             Stmt::Expression { expression } =>
                 write!(f, "(expr {})", expression),
+            Stmt::If { condition, then_branch, else_branch } =>
+                match else_branch {
+                    Some(else_branch) =>
+                        write!(f, "(if {} {} {})", condition, then_branch, else_branch),
+                    None =>
+                        write!(f, "(if {} {})", condition, then_branch),
+                }
             Stmt::Print { expression } =>
                 write!(f, "(print {})", expression),
             Stmt::Var { name, initializer } =>
