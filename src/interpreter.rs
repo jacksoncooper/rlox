@@ -47,15 +47,15 @@ impl Interpreter {
 
     fn execute(&mut self, stmt: Stmt) -> Result<(), Error> {
         match stmt {
-            Stmt::Block { statements } =>
+            Stmt::Block(statements) =>
                 self.execute_block(statements),
-            Stmt::Expression { expression } =>
+            Stmt::Expression(expression) =>
                 self.execute_expression(expression),
-            Stmt::If { condition, then_branch, else_branch } =>
+            Stmt::If(condition, then_branch, else_branch) =>
                 self.execute_if(condition, *then_branch, else_branch.map(|b| *b)),
-            Stmt::Print { expression } =>
+            Stmt::Print(expression) =>
                 self.execute_print(expression),
-            Stmt::Var { name, initializer } =>
+            Stmt::Var(name, initializer) =>
                 self.execute_variable_declaration(name, initializer),
         }
     }
@@ -93,7 +93,7 @@ impl Interpreter {
         condition: Expr,
         then_branch: Stmt, else_branch: Option<Stmt>
     ) -> Result<(), Error> {
-        let go_then = is_truthy(self.evaluate(condition)?);
+        let go_then = is_truthy(&self.evaluate(condition)?);
         
         if go_then {
             self.execute(then_branch)?;
@@ -135,17 +135,19 @@ impl Interpreter {
         // that it is "reduced" to a value, or consumed.
 
         match expr {
-            Expr::Assignment { name, value } =>
+            Expr::Assignment(name, value) =>
                 self.evaluate_assignment(name, *value),
-            Expr::Binary { left, operator, right } =>
+            Expr::Binary(left, operator, right) =>
                 self.evaluate_binary(*left, operator, *right),
-            Expr::Grouping { grouping } =>
+            Expr::Grouping(grouping) =>
                 self.evaluate(*grouping),
-            Expr::Literal { value } =>
+            Expr::Literal(value) =>
                 Ok(value),
-            Expr::Unary { operator, right } =>
+            Expr::Logical(left, operator, right) =>
+                self.evaluate_logical(*left, operator, *right),
+            Expr::Unary(operator, right) =>
                 self.evaluate_unary(operator, *right),
-            Expr::Variable { name } =>
+            Expr::Variable(name) =>
                 // This one has a side effect, so we need to pass it &mut self.
                 self.evaluate_variable(name),
         }
@@ -208,9 +210,11 @@ impl Interpreter {
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Number(left + right)),
-                    (Object::String(mut left), Object::String(right)) => {
-                        left.push_str(&right);
-                        Ok(Object::String(left))
+                    (Object::String(ref left), Object::String(ref right)) => {
+                        let mut concatenation = String::new();
+                        concatenation.push_str(left);
+                        concatenation.push_str(right);
+                        Ok(Object::String(concatenation))
                     }
                     _ => Err(Error::new(
                             &operator,
@@ -242,6 +246,37 @@ impl Interpreter {
         }
     }
 
+    fn evaluate_logical(
+        &mut self,
+        left: Expr, operator: Token, right: Expr
+    ) -> Result<Object, Error> {
+        // Lox's logical operators are really ~~weird~~ fun. They are only
+        // guaranteed to return a value with the truth value of the logical
+        // expression. Combined short-circuiting evaluation, this makes them
+        // deterministic.
+
+        // T or  _ -> left operand
+        // F or  _ -> right operand
+        // T and _ -> right operand
+        // F and _ -> left operand
+
+        let left = self.evaluate(left)?;
+
+        match operator.token_type {
+            TT::Or => {
+                if is_truthy(&left) { return Ok(left); }
+            },
+            TT::And => {
+                if !is_truthy(&left) { return Ok(left); }
+            },
+
+            // A panic here indicates an error in the parser.
+            _ => panic!("token is not a logical operator")
+        }
+
+        Ok(self.evaluate(right)?)
+    }
+
     fn evaluate_unary(
         &mut self,
         operator: Token, right: Expr
@@ -250,7 +285,7 @@ impl Interpreter {
 
         match operator.token_type {
             TT::Bang =>
-                Ok(Object::Boolean(!is_truthy(right))),
+                Ok(Object::Boolean(!is_truthy(&right))),
             TT::Minus =>
                 match right {
                     Object::Number(float) => Ok(Object::Number(-float)),
@@ -269,7 +304,7 @@ impl Interpreter {
 
 #[allow(clippy::match_like_matches_macro)]
 
-fn is_truthy(operand: Object) -> bool {
+fn is_truthy(operand: &Object) -> bool {
     // We're following Ruby because Ruby is pretty. 'false' and 'nil' are
     // falsey. Everything else is truthy.
 

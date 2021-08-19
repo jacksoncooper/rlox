@@ -6,17 +6,17 @@ use crate::token::Token;
 #[derive(Debug)]
 
 pub enum Stmt {
-    Block { statements: Vec<Stmt> },
-    Expression { expression: Expr },
-    If { condition: Expr, then_branch: Box<Stmt>, else_branch: Option<Box<Stmt>> },
-    Print { expression: Expr },
-    Var { name: Token, initializer: Option<Expr> },
+    Block(Vec<Stmt>),
+    Expression(Expr),
+    If(Expr, Box<Stmt>, Option<Box<Stmt>>),
+    Print(Expr),
+    Var(Token, Option<Expr>),
 }
 
 impl fmt::Display for Stmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Stmt::Block { statements } => {
+            Stmt::Block(statements) => {
                 let mut readable = String::from("(block");
                 for statement in statements {
                     readable.push(' ');
@@ -25,18 +25,18 @@ impl fmt::Display for Stmt {
                 readable.push(')');
                 write!(f, "{}", readable)
             },
-            Stmt::Expression { expression } =>
+            Stmt::Expression(expression) =>
                 write!(f, "(expr {})", expression),
-            Stmt::If { condition, then_branch, else_branch } =>
+            Stmt::If(condition, then_branch, else_branch) =>
                 match else_branch {
                     Some(else_branch) =>
                         write!(f, "(if {} {} {})", condition, then_branch, else_branch),
                     None =>
                         write!(f, "(if {} {})", condition, then_branch),
                 }
-            Stmt::Print { expression } =>
+            Stmt::Print(expression) =>
                 write!(f, "(print {})", expression),
-            Stmt::Var { name, initializer } =>
+            Stmt::Var(name, initializer) =>
                 match initializer {
                     Some(initializer) =>
                         write!(f, "(decl {} {})", name.lexeme, initializer),

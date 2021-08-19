@@ -105,7 +105,7 @@ impl Parser {
     
         self.expect(TT::Semicolon, "Expect ';' after variable declaration.")?;
 
-        Ok(Stmt::Var { name, initializer })
+        Ok(Stmt::Var(name, initializer))
     }
 
     fn statement(&mut self) -> Result<Stmt, Error> {
@@ -114,7 +114,7 @@ impl Parser {
         }
 
         if self.advance_if(&[TT::LeftBrace]) {
-            return Ok(Stmt::Block { statements: self.block()? });
+            return Ok(Stmt::Block(self.block()?));
         }
 
         if self.advance_if(&[TT::Print]) {
@@ -135,7 +135,7 @@ impl Parser {
             Some(Box::new(self.statement()?))
         } else { None };
 
-        Ok(Stmt::If { condition, then_branch, else_branch })
+        Ok(Stmt::If(condition, then_branch, else_branch))
     }
 
     fn block(&mut self) -> Result<Vec<Stmt>, Error> {
@@ -153,13 +153,13 @@ impl Parser {
     fn print_statement(&mut self) -> Result<Stmt, Error> {
         let value: Expr = self.expression()?;
         self.expect(TT::Semicolon, "Expect ';' after value.")?;
-        Ok(Stmt::Print { expression: value })
+        Ok(Stmt::Print(value))
     }
 
     fn expression_statement(&mut self) -> Result<Stmt, Error> {
-        let expr: Expr = self.expression()?;
+        let expression: Expr = self.expression()?;
         self.expect(TT::Semicolon, "Expect ';' after expression.")?;
-        Ok(Stmt::Expression { expression: expr })
+        Ok(Stmt::Expression(expression))
     }
 
     fn expression(&mut self) -> Result<Expr, Error> {
@@ -167,7 +167,7 @@ impl Parser {
     }
 
     fn assignment(&mut self) -> Result<Expr, Error> {
-        let expr: Expr = self.equality()?;
+        let expr: Expr = self.or()?;
 
         if self.advance_if(&[TT::Equal]) {
             let equals: Token = self.previous();
@@ -178,38 +178,43 @@ impl Parser {
             };
 
             return match expr {
-                Expr::Variable { name } =>
-                    Ok(Expr::Assignment { name, value: Box::new(value) }), // [1]
-                _ =>
-                    Err(Error::new(
-                        equals,
-                        "Invalid assignment target.",
-                        Some(value)
-                    )),
+                Expr::Variable(name) =>
+                    Ok(Expr::Assignment(name, Box::new(value))), // [1]
+                _ => Err(Error::new(equals, "Invalid assignment target.", Some(value))),
             };
         }
 
         Ok(expr)
     }
 
+    fn or(&mut self) -> Result<Expr, Error> {
+        let operators = [TT::Or];
+        self.binary(&operators, &Parser::and, &Expr::Logical)
+    }
+
+    fn and(&mut self) -> Result<Expr, Error> {
+        let operators = [TT::And];
+        self.binary(&operators, &Parser::equality, &Expr::Logical)
+    }
+
     fn equality(&mut self) -> Result<Expr, Error> {
         let operators = [TT::BangEqual, TT::EqualEqual];
-        self.binary(&operators, &Parser::comparison)
+        self.binary(&operators, &Parser::comparison, &Expr::Binary)
     }
 
     fn comparison(&mut self) -> Result<Expr, Error> {
         let operators = [TT::Greater, TT::GreaterEqual, TT::Less, TT::LessEqual];
-        self.binary(&operators, &Parser::term)
+        self.binary(&operators, &Parser::term, &Expr::Binary)
     }
 
     fn term(&mut self) -> Result<Expr, Error> {
         let operators = [TT::Minus, TT::Plus];
-        self.binary(&operators, &Parser::factor)
+        self.binary(&operators, &Parser::factor, &Expr::Binary)
     }
 
     fn factor(&mut self) -> Result<Expr, Error> {
         let operators = [TT::Slash, TT::Star];
-        self.binary(&operators, &Parser::unary)
+        self.binary(&operators, &Parser::unary, &Expr::Binary)
     }
 
     fn unary(&mut self) -> Result<Expr, Error> {
@@ -221,11 +226,7 @@ impl Parser {
         if self.advance_if(&operators) {
             let operator: Token = self.previous();
             let right: Expr = self.unary()?;
-
-            return Ok(Expr::Unary {
-                operator,
-                right: Box::new(right)
-            })
+            return Ok(Expr::Unary(operator, Box::new(right)));
         }
 
         self.primary()
@@ -236,36 +237,31 @@ impl Parser {
 
         if let TT::Identifier(_) = token.token_type {
             self.advance();
-
-            return Ok(Expr::Variable {
-                name: token,
-            });
+            return Ok(Expr::Variable(token));
         }
 
         if let TT::False     | TT::True
             |  TT::Number(_) | TT::String(_)
             |  TT::Nil
             = token.token_type {
-
             self.advance();
-
-            return Ok(Expr::Literal {
-                value: to_object(token),
-            });
+            return Ok(Expr::Literal(to_object(token)));
         }
 
         if let TT::LeftParen = token.token_type {
             self.advance();
             let group: Expr = self.expression()?;
             self.expect(TT::RightParen, "Expect ')' after expression.")?;
-            return Ok(Expr::Grouping { grouping: Box::new(group) });
+            return Ok(Expr::Grouping(Box::new(group)));
         }
 
         Err(self.panic_here("Expect expression."))
     }
 
-    fn binary<O>(&mut self, operators: &[TT], operand: &O) -> Result<Expr, Error>
-        where O: Fn(&mut Self) -> Result<Expr, Error>
+    fn binary<E, O>(&mut self, operators: &[TT], operand: &O, expression: &E) -> Result<Expr, Error>
+        where
+            O: Fn(&mut Self) -> Result<Expr, Error>,
+            E: Fn(Box<Expr>, Token, Box<Expr>) -> Expr
     {
         // Parse a sequence of left-associative binary operators.
         
@@ -274,12 +270,7 @@ impl Parser {
         while self.advance_if(operators) {
             let operator: Token = self.previous();
             let right: Expr = operand(self)?;
-
-            left = Expr::Binary {
-                left: Box::new(left),
-                operator,
-                right: Box::new(right)
-            }
+            left = expression(Box::new(left), operator, Box::new(right));
         }
 
         Ok(left)

@@ -1,0 +1,4 @@
+var answer;
+
+if (answer or (answer = 1))
+    print answer;
