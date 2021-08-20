@@ -16,7 +16,6 @@ pub struct Error {
 impl Error {
     pub fn new(token: &Token, message: &str) -> Error {
         Error {
-            // TODO: Just take ownership of the Token. No need to clone.
             token: Token::clone(token),
             message: message.to_string()
         }
@@ -32,9 +31,11 @@ impl Interpreter {
         Interpreter { local: env::new() }
     }
 
-    pub fn interpret(&mut self, statements: Vec<Stmt>) -> Result<(), error::LoxError>
-    {
-        for statement in statements {
+    pub fn interpret(
+        &mut self,
+        statements: Vec<Stmt>
+    ) -> Result<(), error::LoxError> {
+        for statement in &statements {
             if let Err(error) = self.execute(statement) {
                 error::runtime_error(&error.token, &error.message);
                 // A runtime error kills the interpreter.
@@ -45,22 +46,25 @@ impl Interpreter {
         Ok(())
     }
 
-    fn execute(&mut self, stmt: Stmt) -> Result<(), Error> {
+    fn execute(&mut self, stmt: &Stmt) -> Result<(), Error> {
         match stmt {
             Stmt::Block(statements) =>
                 self.execute_block(statements),
             Stmt::Expression(expression) =>
                 self.execute_expression(expression),
-            Stmt::If(condition, then_branch, else_branch) =>
-                self.execute_if(condition, *then_branch, else_branch.map(|b| *b)),
-            Stmt::Print(expression) =>
-                self.execute_print(expression),
+            Stmt::If(condition, then_branch, else_branch) => {
+                self.execute_if(condition, then_branch, else_branch)
+            }
+            Stmt::Print(value) =>
+                self.execute_print(value),
             Stmt::Var(name, initializer) =>
                 self.execute_variable_declaration(name, initializer),
+            Stmt::While(condition, body) =>
+                self.execute_while(condition, body),
         }
     }
 
-    fn execute_block(&mut self, statements: Vec<Stmt>) -> Result<(), Error> {
+    fn execute_block(&mut self, statements: &Vec<Stmt>) -> Result<(), Error> {
         let old_local = env::copy(&self.local);
 
         let mut new_local = env::new();
@@ -83,15 +87,16 @@ impl Interpreter {
         Ok(())
     }
 
-    fn execute_expression(&mut self, expr: Expr) -> Result<(), Error>{
+    fn execute_expression(&mut self, expr: &Expr) -> Result<(), Error>{
         self.evaluate(expr)?;
         Ok(())
     }
 
     fn execute_if(
         &mut self,
-        condition: Expr,
-        then_branch: Stmt, else_branch: Option<Stmt>
+        condition: &Expr,
+        then_branch: &Stmt,
+        else_branch: &Option<Box<Stmt>>
     ) -> Result<(), Error> {
         let go_then = is_truthy(&self.evaluate(condition)?);
         
@@ -106,7 +111,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn execute_print(&mut self, expr: Expr) -> Result<(), Error>{
+    fn execute_print(&mut self, expr: &Expr) -> Result<(), Error> {
         let value: Object = self.evaluate(expr)?;
         println!("{}", value);
         Ok(())
@@ -114,8 +119,8 @@ impl Interpreter {
 
     fn execute_variable_declaration(
         &mut self,
-        token: Token,
-        initializer: Option<Expr>
+        token: &Token,
+        initializer: &Option<Expr>
     ) -> Result<(), Error> {
         let value: Object = match initializer {
             Some(initializer) => {
@@ -130,23 +135,37 @@ impl Interpreter {
         Ok(())
     }
 
-    fn evaluate(&mut self, expr: Expr) -> Result<Object, Error> {
-        // This function gobbles the syntax tree intentionally to emphasize
-        // that it is "reduced" to a value, or consumed.
+    fn execute_while(
+        &mut self,
+        condition: &Expr,
+        body: &Stmt
+    ) -> Result<(), Error> {
+        while is_truthy(&self.evaluate(condition)?) {
+            self.execute(body)?;
+        }
+
+        Ok(())
+    }
+
+    fn evaluate(&mut self, expr: &Expr) -> Result<Object, Error> {
+        // TODO: There's no need to produced an owned Object. The only mutation
+        // occurs in the Environment type. The most glaring problem is cloning
+        // Literal leaves to conform to the return type. Wrap objects in an Rc
+        // maybe?
 
         match expr {
             Expr::Assignment(name, value) =>
-                self.evaluate_assignment(name, *value),
+                self.evaluate_assignment(name, &value),
             Expr::Binary(left, operator, right) =>
-                self.evaluate_binary(*left, operator, *right),
+                self.evaluate_binary(&left, operator, &right),
             Expr::Grouping(grouping) =>
-                self.evaluate(*grouping),
+                self.evaluate(&grouping),
             Expr::Literal(value) =>
-                Ok(value),
+                Ok(Object::clone(value)),
             Expr::Logical(left, operator, right) =>
-                self.evaluate_logical(*left, operator, *right),
+                self.evaluate_logical(&left, operator, &right),
             Expr::Unary(operator, right) =>
-                self.evaluate_unary(operator, *right),
+                self.evaluate_unary(operator, &right),
             Expr::Variable(name) =>
                 // This one has a side effect, so we need to pass it &mut self.
                 self.evaluate_variable(name),
@@ -155,7 +174,8 @@ impl Interpreter {
 
     fn evaluate_assignment(
         &mut self,
-        name: Token, value: Expr
+        name: &Token,
+        value: &Expr
     ) -> Result<Object, Error> {
         let value: Object = self.evaluate(value)?;
         env::assign(&mut self.local, &name, &value)?;
@@ -166,7 +186,9 @@ impl Interpreter {
 
     fn evaluate_binary(
         &mut self,
-        left: Expr, operator: Token, right: Expr
+        left: &Expr,
+        operator: &Token, 
+        right: &Expr
     ) -> Result<Object, Error> {
         let left  = self.evaluate(left)?;
         let right = self.evaluate(right)?;
@@ -180,65 +202,62 @@ impl Interpreter {
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Boolean(left > right)),
-                    _ => Err(Error::new(&operator, "Operands must be numbers.")),
+                    _ => Err(Error::new(operator, "Operands must be numbers.")),
                 },
             TT::GreaterEqual =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Boolean(left >= right)),
-                    _ => Err(Error::new(&operator, "Operands must be numbers.")),
+                    _ => Err(Error::new(operator, "Operands must be numbers.")),
                 },
             TT::Less =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Boolean(left < right)),
-                    _ => Err(Error::new(&operator, "Operands must be numbers.")),
+                    _ => Err(Error::new(operator, "Operands must be numbers.")),
                 },
             TT::LessEqual =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Boolean(left <= right)),
-                    _ => Err(Error::new(&operator, "Operands must be numbers.")),
+                    _ => Err(Error::new(operator, "Operands must be numbers.")),
                 },
             TT::Minus =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Number(left - right)),
-                    _ => Err(Error::new(&operator, "Operands must be numbers.")),
+                    _ => Err(Error::new(operator, "Operands must be numbers.")),
                 },
             TT::Plus =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Number(left + right)),
-                    (Object::String(ref left), Object::String(ref right)) => {
+                    (Object::String(left), Object::String(right)) => {
                         let mut concatenation = String::new();
-                        concatenation.push_str(left);
-                        concatenation.push_str(right);
+                        concatenation.push_str(&left);
+                        concatenation.push_str(&right);
                         Ok(Object::String(concatenation))
                     }
                     _ => Err(Error::new(
-                            &operator,
+                            operator,
                             "Operands must be two numbers or two strings."
                         )),
                 }
             TT::Slash =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
-                        // TODO: Not sure if this encompasses all f64
-                        // representations of zero!
-
                         if right != 0 as f64 {
                             Ok(Object::Number(left / right))
                         } else {
-                            Err(Error::new(&operator, "Division by zero."))
+                            Err(Error::new(operator, "Division by zero."))
                         }
-                    _ => Err(Error::new(&operator, "Operands must be numbers.")),
+                    _ => Err(Error::new(operator, "Operands must be numbers.")),
                 },
             TT::Star =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Number(left * right)),
-                    _ => Err(Error::new(&operator, "Operands must be numbers.")),
+                    _ => Err(Error::new(operator, "Operands must be numbers.")),
                 },
 
             // A panic here indicates an error in the parser.
@@ -248,7 +267,9 @@ impl Interpreter {
 
     fn evaluate_logical(
         &mut self,
-        left: Expr, operator: Token, right: Expr
+        left: &Expr,
+        operator: &Token,
+        right: &Expr
     ) -> Result<Object, Error> {
         // Lox's logical operators are really ~~weird~~ fun. They are only
         // guaranteed to return a value with the truth value of the logical
@@ -279,7 +300,8 @@ impl Interpreter {
 
     fn evaluate_unary(
         &mut self,
-        operator: Token, right: Expr
+        operator: &Token,
+        right: &Expr
     ) -> Result<Object, Error> {
         let right: Object = self.evaluate(right)?;
 
@@ -289,7 +311,7 @@ impl Interpreter {
             TT::Minus =>
                 match right {
                     Object::Number(float) => Ok(Object::Number(-float)),
-                    _ => Err(Error::new(&operator, "Operand must be a number.")),
+                    _ => Err(Error::new(operator, "Operand must be a number.")),
                 },
             
             // A panic here indicates an error in the parser. [1] 
@@ -297,7 +319,7 @@ impl Interpreter {
         }
     }
 
-    fn evaluate_variable(&self, token: Token) -> Result<Object, Error> {
+    fn evaluate_variable(&self, token: &Token) -> Result<Object, Error> {
         env::get(&self.local, &token)
     }
 }

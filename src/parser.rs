@@ -121,6 +121,10 @@ impl Parser {
             return self.print_statement();
         }
 
+        if self.advance_if(&[TT::While]) {
+            return self.while_statement();
+        }
+
         self.expression_statement()
     }
 
@@ -154,6 +158,14 @@ impl Parser {
         let value: Expr = self.expression()?;
         self.expect(TT::Semicolon, "Expect ';' after value.")?;
         Ok(Stmt::Print(value))
+    }
+
+    fn while_statement(&mut self) -> Result<Stmt, Error> {
+        self.expect(TT::LeftParen, "Expect '(' after 'while'.")?;
+        let condition = self.expression()?;
+        self.expect(TT::RightParen, "Expect ')' after condition.")?;
+        let body = Box::new(self.statement()?);
+        Ok(Stmt::While(condition, body))
     }
 
     fn expression_statement(&mut self) -> Result<Stmt, Error> {
