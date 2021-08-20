@@ -4,7 +4,6 @@ use crate::expression::Expr;
 use crate::token::Token;
 
 #[derive(Debug)]
-
 pub enum Stmt {
     Block(Vec<Stmt>),
     Expression(Expr),

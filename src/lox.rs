@@ -77,7 +77,7 @@ fn run(source: &str) -> Result<(), LoxError> {
     parser.parse();
     let statements = parser.consume()?;
 
-    for statement in statements.iter() {
+    for statement in &statements {
         println!("{}", statement);
     }
 

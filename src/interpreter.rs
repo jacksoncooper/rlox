@@ -52,9 +52,8 @@ impl Interpreter {
                 self.execute_block(statements),
             Stmt::Expression(expression) =>
                 self.execute_expression(expression),
-            Stmt::If(condition, then_branch, else_branch) => {
-                self.execute_if(condition, then_branch, else_branch)
-            }
+            Stmt::If(condition, then_branch, else_branch) =>
+                self.execute_if(condition, then_branch, else_branch),
             Stmt::Print(value) =>
                 self.execute_print(value),
             Stmt::Var(name, initializer) =>
@@ -64,7 +63,7 @@ impl Interpreter {
         }
     }
 
-    fn execute_block(&mut self, statements: &Vec<Stmt>) -> Result<(), Error> {
+    fn execute_block(&mut self, statements: &[Stmt]) -> Result<(), Error> {
         let old_local = env::copy(&self.local);
 
         let mut new_local = env::new();
@@ -102,10 +101,8 @@ impl Interpreter {
         
         if go_then {
             self.execute(then_branch)?;
-        } else {
-            if let Some(statement) = else_branch {
-                self.execute(statement)?;
-            }
+        } else if let Some(statement) = else_branch {
+            self.execute(statement)?;
         }
 
         Ok(())
@@ -130,7 +127,7 @@ impl Interpreter {
             None => Object::Nil,
         };
 
-        env::define(&mut self.local, &token, &value);
+        env::define(&mut self.local, token, &value);
 
         Ok(())
     }
@@ -155,17 +152,17 @@ impl Interpreter {
 
         match expr {
             Expr::Assignment(name, value) =>
-                self.evaluate_assignment(name, &value),
+                self.evaluate_assignment(name, value),
             Expr::Binary(left, operator, right) =>
-                self.evaluate_binary(&left, operator, &right),
+                self.evaluate_binary(left, operator, right),
             Expr::Grouping(grouping) =>
-                self.evaluate(&grouping),
+                self.evaluate(grouping),
             Expr::Literal(value) =>
                 Ok(Object::clone(value)),
             Expr::Logical(left, operator, right) =>
-                self.evaluate_logical(&left, operator, &right),
+                self.evaluate_logical(left, operator, right),
             Expr::Unary(operator, right) =>
-                self.evaluate_unary(operator, &right),
+                self.evaluate_unary(operator, right),
             Expr::Variable(name) =>
                 // This one has a side effect, so we need to pass it &mut self.
                 self.evaluate_variable(name),
@@ -178,12 +175,11 @@ impl Interpreter {
         value: &Expr
     ) -> Result<Object, Error> {
         let value: Object = self.evaluate(value)?;
-        env::assign(&mut self.local, &name, &value)?;
+        env::assign(&mut self.local, name, &value)?;
         Ok(value)
     }
 
     #[allow(clippy::float_cmp)]
-
     fn evaluate_binary(
         &mut self,
         left: &Expr,
@@ -295,7 +291,7 @@ impl Interpreter {
             _ => panic!("token is not a logical operator")
         }
 
-        Ok(self.evaluate(right)?)
+        self.evaluate(right)
     }
 
     fn evaluate_unary(
@@ -320,12 +316,11 @@ impl Interpreter {
     }
 
     fn evaluate_variable(&self, token: &Token) -> Result<Object, Error> {
-        env::get(&self.local, &token)
+        env::get(&self.local, token)
     }
 }
 
 #[allow(clippy::match_like_matches_macro)]
-
 fn is_truthy(operand: &Object) -> bool {
     // We're following Ruby because Ruby is pretty. 'false' and 'nil' are
     // falsey. Everything else is truthy.
