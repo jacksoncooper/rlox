@@ -5,12 +5,6 @@ use crate::statement::Stmt;
 use crate::token::Token;
 use crate::token_type::TokenType as TT;
 
-pub struct Parser {
-    tokens: Vec<Token>,
-    current: usize,
-    statements: Option<Vec<Stmt>>
-}
-
 struct Error {
     token: Token,
     message: &'static str,
@@ -44,9 +38,19 @@ fn to_object(token: Token) -> Object {
     }
 }
 
+type Tokens = std::iter::Peekable<std::vec::IntoIter<Token>>;
+
+pub struct Parser {
+    tokens: Tokens,
+    statements: Option<Vec<Stmt>>
+}
+
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Parser {
-        Parser { tokens, current: 0, statements: None }
+        Parser {
+            tokens: tokens.into_iter().peekable(),
+            statements: None
+        }
     }
 
     pub fn parse(&mut self) {
@@ -78,7 +82,7 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Stmt, Error> {
-        if self.advance_if(&[TT::Var]) {
+        if self.advance_if(&[TT::Var]).is_some() {
             return self.variable_declaration();
         }
 
@@ -86,42 +90,41 @@ impl Parser {
     }
 
     fn variable_declaration(&mut self) -> Result<Stmt, Error> {
-        let name: Token = self.peek();
+        let name = self.advance();
 
-        match name.token_type {
-            TT::Identifier(_) => {
-                self.advance();
-            }
-            _ => return Err(self.panic_here("Expect variable name.")),
+        if let TT::Identifier(_) = name.token_type {
+            let initializer = if self.advance_if(&[TT::Equal]).is_some() {
+                Some(self.expression()?)
+            } else {
+                None
+            };
+        
+            self.expect(TT::Semicolon, "Expect ';' after variable declaration.")?;
+
+            Ok(Stmt::Var(name, initializer))
+        } else {
+            Err(Error::new(name, "Expect variable name.", None))
         }
-
-        let initializer = if self.advance_if(&[TT::Equal]) {
-            Some(self.expression()?)
-        } else { None };
-    
-        self.expect(TT::Semicolon, "Expect ';' after variable declaration.")?;
-
-        Ok(Stmt::Var(name, initializer))
     }
 
     fn statement(&mut self) -> Result<Stmt, Error> {
-        if self.advance_if(&[TT::If]) {
+        if self.advance_if(&[TT::If]).is_some() {
             return self.if_statement();
         }
 
-        if self.advance_if(&[TT::For]) {
+        if self.advance_if(&[TT::For]).is_some() {
             return self.for_statement();
         }
 
-        if self.advance_if(&[TT::LeftBrace]) {
+        if self.advance_if(&[TT::LeftBrace]).is_some() {
             return Ok(Stmt::Block(self.block()?));
         }
 
-        if self.advance_if(&[TT::Print]) {
+        if self.advance_if(&[TT::Print]).is_some() {
             return self.print_statement();
         }
 
-        if self.advance_if(&[TT::While]) {
+        if self.advance_if(&[TT::While]).is_some() {
             return self.while_statement();
         }
 
@@ -135,7 +138,7 @@ impl Parser {
 
         let then_branch = Box::new(self.statement()?);
 
-        let else_branch = if self.advance_if(&[TT::Else]) {
+        let else_branch = if self.advance_if(&[TT::Else]).is_some() {
             Some(Box::new(self.statement()?))
         } else { None };
 
@@ -146,9 +149,13 @@ impl Parser {
         self.expect(TT::LeftParen, "Expect '(' after 'for'.")?;
 
         let initializer: Option<Stmt> =
-            if self.advance_if(&[TT::Semicolon]) { None }
-            else if self.advance_if(&[TT::Var]) { Some(self.variable_declaration()?) }
-            else { Some(self.expression_statement()?) };
+            if self.advance_if(&[TT::Semicolon]).is_some() {
+                None
+            } else if self.advance_if(&[TT::Var]).is_some() {
+                Some(self.variable_declaration()?)
+            } else {
+                Some(self.expression_statement()?)
+            };
 
         let condition: Option<Expr> =
             if self.check(&TT::Semicolon) { None }
@@ -220,9 +227,7 @@ impl Parser {
     fn assignment(&mut self) -> Result<Expr, Error> {
         let expr: Expr = self.or()?;
 
-        if self.advance_if(&[TT::Equal]) {
-            let equals: Token = self.previous();
-
+        if let Some(equals) = self.advance_if(&[TT::Equal]) {
             let value: Expr = match self.assignment() {
                 Ok(value) => value,
                 Err(error) => error.recover()?,
@@ -231,7 +236,12 @@ impl Parser {
             return match expr {
                 Expr::Variable(name) =>
                     Ok(Expr::Assignment(name, Box::new(value))), // [1]
-                _ => Err(Error::new(equals, "Invalid assignment target.", Some(value))),
+                _ =>
+                    Err(Error::new(
+                        equals,
+                        "Invalid assignment target.",
+                        Some(value)
+                    )),
             };
         }
 
@@ -274,8 +284,7 @@ impl Parser {
 
         let operators = [TT::Bang, TT::Minus];
 
-        if self.advance_if(&operators) {
-            let operator: Token = self.previous();
+        if let Some(operator) = self.advance_if(&operators) {
             let right: Expr = self.unary()?;
             return Ok(Expr::Unary(operator, Box::new(right)));
         }
@@ -284,10 +293,9 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Expr, Error> {
-        let token: Token = self.peek();
+        let token = self.advance();
 
         if let TT::Identifier(_) = token.token_type {
-            self.advance();
             return Ok(Expr::Variable(token));
         }
 
@@ -295,18 +303,16 @@ impl Parser {
             |  TT::Number(_) | TT::String(_)
             |  TT::Nil
             = token.token_type {
-            self.advance();
             return Ok(Expr::Literal(to_object(token)));
         }
 
         if let TT::LeftParen = token.token_type {
-            self.advance();
             let group: Expr = self.expression()?;
             self.expect(TT::RightParen, "Expect ')' after expression.")?;
             return Ok(Expr::Grouping(Box::new(group)));
         }
 
-        Err(self.panic_here("Expect expression."))
+        Err(Error::new(token, "Expect expression.", None))
     }
 
     fn binary<E, O>(&mut self, operators: &[TT], operand: &O, expression: &E) -> Result<Expr, Error>
@@ -315,11 +321,10 @@ impl Parser {
             E: Fn(Box<Expr>, Token, Box<Expr>) -> Expr
     {
         // Parse a sequence of left-associative binary operators.
-        
+
         let mut left: Expr = operand(self)?;
 
-        while self.advance_if(operators) {
-            let operator: Token = self.previous();
+        while let Some(operator) = self.advance_if(operators) {
             let right: Expr = operand(self)?;
             left = expression(Box::new(left), operator, Box::new(right));
         }
@@ -327,83 +332,68 @@ impl Parser {
         Ok(left)
     }
 
-    // TODO: The functions peek() and previous() are indicative of a design
-    // problem. Cloning a Token can be very expensive when that Token contains
-    // a literal. Use a structure that provides ownership of the Tokens, like
-    // std::vec::IntoIter. But a move probably still requires a copy to the
-    // local stack frame. So maybe wrap the Tokens in Rc? Indexing is also
-    // slow because of the runtime check.
-
-    fn is_at_end(&self) -> bool {
-        let current = &self.tokens[self.current];
-        current.token_type == TT::EndOfFile
+    fn is_at_end(&mut self) -> bool {
+        self.peek().token_type == TT::EndOfFile
     }
 
-    fn peek(&self) -> Token {
-        Token::clone(&self.tokens[self.current])
-    }
-
-    fn previous(&self) -> Token {
-        Token::clone(&self.tokens[self.current - 1])
-    }
-
-    fn check(&self, token_type: &TT) -> bool {
-        if self.is_at_end() { return false; }
-        let current = &self.tokens[self.current];
-        current.token_type == *token_type
-    }
-
-    fn advance(&mut self) {
-        if !self.is_at_end() {
-            self.current += 1;
+    fn peek(&mut self) -> &Token {
+        if let Some(next) = self.tokens.peek() {
+            return next;
         }
+
+        // If the scanner doesn't terminate the programmer's input with an
+        // end-of-file Token this is an error in the interpreter.
+        panic!("expect EOF token at end");
     }
 
-    fn advance_if(&mut self, token_types: &[TT]) -> bool {
+    fn check(&mut self, token_type: &TT) -> bool {
+        if self.is_at_end() { return false; }
+        self.peek().token_type == *token_type
+    }
+
+    fn advance(&mut self) -> Token {
+        if let Some(previous) = self.tokens.next() {
+            return previous;
+        }
+
+        // See peek().
+        panic!("expect EOF token at end");
+    }
+
+    fn advance_if(&mut self, token_types: &[TT]) -> Option<Token> {
         for token_type in token_types {
             if self.check(token_type) {
-                self.advance();
-                return true;
+                return Some(self.advance());
             }
         }
         
-        false
+        None
     }
 
     fn expect(&mut self, token_type: TT, message: &'static str) -> Result<Token, Error> {
         if self.check(&token_type) {
-            let current = self.peek();
-            self.advance();
-            return Ok(current);
+            return Ok(self.advance());
         }
 
-        Err(self.panic_here(message))
-    }
-
-    fn panic_here(&self, message: &'static str) -> Error {
-        Error::new(self.peek(), message, None)
+        Err(Error::new(self.advance(), message, None))
     }
 
     fn synchronize(&mut self) {
-        // Discard the Token that caused the panic.
-        self.advance();
-
         while !self.is_at_end() {
             // If the current Token is a semicolon, the next Token starts a new
             // statement.
 
-            if self.previous().token_type == TT::Semicolon { return; }
+            if self.peek().token_type == TT::Semicolon {
+                self.advance();
+                return;
+            }
 
             // Otherwise the Token may be a keyword which marks the start of a
             // statement.
 
-            let token_type: TT = self.peek().token_type;
-
-            // TODO: This is like advance_if() without the advance.
-
             if let TT::Class  | TT::For | TT::Fun   | TT::If | TT::Print
                 |  TT::Return | TT::Var | TT::While
-                = token_type { return; }
+                = self.peek().token_type { return; }
 
             self.advance();
         }

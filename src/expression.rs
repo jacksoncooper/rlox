@@ -7,6 +7,7 @@ use crate::token::Token;
 pub enum Expr {
     Assignment(Token, Box<Expr>),
     Binary(Box<Expr>, Token, Box<Expr>),
+    Call(Box<Expr>, Token, Vec<Expr>),
     Grouping(Box<Expr>),
     Literal(Object),
     Logical(Box<Expr>, Token, Box<Expr>),
@@ -21,6 +22,13 @@ impl fmt::Display for Expr {
                 write!(f, "(= {} {})", name.lexeme, value),
             Expr::Binary(left, operator, right) =>
                 write!(f, "({} {} {})", operator.lexeme, left, right),
+            Expr::Call(callee, _, expressions) => {
+                let arguments: String = expressions
+                    .into_iter()
+                    .map(|e| e.to_string())
+                    .fold(String::new(), |a, s| format!("{} {}", a, s));
+                write!(f, "(call {} {})", callee, arguments)
+            },
             Expr::Grouping(grouping) =>
                 write!(f, "(group {})", grouping),
             Expr::Literal(value) =>

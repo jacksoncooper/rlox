@@ -152,6 +152,8 @@ impl Interpreter {
                 self.evaluate_assignment(name, value),
             Expr::Binary(left, operator, right) =>
                 self.evaluate_binary(left, operator, right),
+            Expr::Call(callee, _, arguments) =>
+                unimplemented!(),
             Expr::Grouping(grouping) =>
                 self.evaluate(grouping),
             Expr::Literal(value) =>
