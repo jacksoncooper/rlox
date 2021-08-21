@@ -13,23 +13,19 @@ pub struct Parser {
 
 struct Error {
     token: Token,
-    message: String,
+    message: &'static str,
     recoverable: Option<Expr>,
 }
 
 impl Error {
-    fn new(token: Token, message: &str, recoverable: Option<Expr>) -> Error {
-        Error {
-            token,
-            message: message.to_string(),
-            recoverable,
-        }
+    fn new(token: Token, message: &'static str, recoverable: Option<Expr>) -> Error {
+        Error { token, message, recoverable }
     }
 
     fn recover(self) -> Result<Expr, Error> {
         match self.recoverable {
             Some(expr) => {
-                error::parse_error(&self.token, &self.message);
+                error::parse_error(&self.token, self.message);
                 Ok(expr)
             },
             None => Err(self),
@@ -62,7 +58,7 @@ impl Parser {
                 Ok(declaration) =>
                     statements.push(declaration),
                 Err(panic) => {
-                    error::parse_error(&panic.token, &panic.message);
+                    error::parse_error(&panic.token, panic.message);
                     had_error = true;
                     self.synchronize();
                 }
@@ -288,15 +284,17 @@ impl Parser {
         Ok(left)
     }
 
-    fn is_at_end(&self) -> bool {
-        self.peek().token_type == TT::EndOfFile
-    }
-
     // TODO: The functions peek() and previous() are indicative of a design
     // problem. Cloning a Token can be very expensive when that Token contains
-    // a literal. A rewrite should allocate Tokens on the heap and wrap them in
-    // a reference-counting type like Rc. The clone() is to prevent the parser
-    // from mutating its state and invalidating the reference.
+    // a literal. Use a structure that provides ownership of the Tokens, like
+    // std::vec::IntoIter. But a move probably still requires a copy to the
+    // local stack frame. So maybe wrap the Tokens in Rc? Indexing is also
+    // slow because of the runtime check.
+
+    fn is_at_end(&self) -> bool {
+        let current = &self.tokens[self.current];
+        current.token_type == TT::EndOfFile
+    }
 
     fn peek(&self) -> Token {
         Token::clone(&self.tokens[self.current])
@@ -308,15 +306,14 @@ impl Parser {
 
     fn check(&self, token_type: &TT) -> bool {
         if self.is_at_end() { return false; }
-        self.peek().token_type == *token_type
+        let current = &self.tokens[self.current];
+        current.token_type == *token_type
     }
 
-    fn advance(&mut self) -> Token {
+    fn advance(&mut self) {
         if !self.is_at_end() {
             self.current += 1;
         }
-        
-        self.previous()
     }
 
     fn advance_if(&mut self, token_types: &[TT]) -> bool {
@@ -330,15 +327,17 @@ impl Parser {
         false
     }
 
-    fn expect(&mut self, token_type: TT, message: &str) -> Result<Token, Error> {
+    fn expect(&mut self, token_type: TT, message: &'static str) -> Result<Token, Error> {
         if self.check(&token_type) {
-            return Ok(self.advance());
+            let current = self.peek();
+            self.advance();
+            return Ok(current);
         }
 
         Err(self.panic_here(message))
     }
 
-    fn panic_here(&self, message: &str) -> Error {
+    fn panic_here(&self, message: &'static str) -> Error {
         Error::new(self.peek(), message, None)
     }
 

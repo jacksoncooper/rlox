@@ -14,11 +14,8 @@ pub struct Error {
 }
 
 impl Error {
-    pub fn new(token: &Token, message: &str) -> Error {
-        Error {
-            token: Token::clone(token),
-            message: message.to_string()
-        }
+    pub fn new(token: &Token, message: String) -> Error {
+        Error { token: Token::clone(token), message }
     }
 }
 
@@ -198,31 +195,51 @@ impl Interpreter {
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Boolean(left > right)),
-                    _ => Err(Error::new(operator, "Operands must be numbers.")),
+                    _ =>
+                        Err(Error::new(
+                            operator,
+                            "Operands must be numbers.".to_string()
+                        )),
                 },
             TT::GreaterEqual =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Boolean(left >= right)),
-                    _ => Err(Error::new(operator, "Operands must be numbers.")),
+                    _ =>
+                        Err(Error::new(
+                            operator,
+                            "Operands must be numbers.".to_string()
+                        )),
                 },
             TT::Less =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Boolean(left < right)),
-                    _ => Err(Error::new(operator, "Operands must be numbers.")),
+                    _ =>
+                        Err(Error::new(
+                            operator,
+                            "Operands must be numbers.".to_string()
+                        )),
                 },
             TT::LessEqual =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Boolean(left <= right)),
-                    _ => Err(Error::new(operator, "Operands must be numbers.")),
+                    _ =>
+                        Err(Error::new(
+                            operator,
+                            "Operands must be numbers.".to_string()
+                        )),
                 },
             TT::Minus =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Number(left - right)),
-                    _ => Err(Error::new(operator, "Operands must be numbers.")),
+                _ =>
+                    Err(Error::new(
+                        operator,
+                        "Operands must be numbers.".to_string()
+                    )),
                 },
             TT::Plus =>
                 match (left, right) {
@@ -233,10 +250,11 @@ impl Interpreter {
                         concatenation.push_str(&left);
                         concatenation.push_str(&right);
                         Ok(Object::String(concatenation))
-                    }
-                    _ => Err(Error::new(
+                    },
+                    _ =>
+                        Err(Error::new(
                             operator,
-                            "Operands must be two numbers or two strings."
+                            "Operands must be two numbers or two strings.".to_string(),
                         )),
                 }
             TT::Slash =>
@@ -245,15 +263,26 @@ impl Interpreter {
                         if right != 0 as f64 {
                             Ok(Object::Number(left / right))
                         } else {
-                            Err(Error::new(operator, "Division by zero."))
+                            Err(Error::new(
+                                operator,
+                                "Division by zero.".to_string()
+                            ))
                         }
-                    _ => Err(Error::new(operator, "Operands must be numbers.")),
+                    _ =>
+                        Err(Error::new(
+                            operator,
+                            "Operands must be numbers.".to_string()
+                        )),
                 },
             TT::Star =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Number(left * right)),
-                    _ => Err(Error::new(operator, "Operands must be numbers.")),
+                    _ =>
+                        Err(Error::new(
+                            operator,
+                            "Operands must be numbers.".to_string(),
+                        )),
                 },
 
             // A panic here indicates an error in the parser.
@@ -307,7 +336,11 @@ impl Interpreter {
             TT::Minus =>
                 match right {
                     Object::Number(float) => Ok(Object::Number(-float)),
-                    _ => Err(Error::new(operator, "Operand must be a number.")),
+                    _ =>
+                        Err(Error::new(
+                            operator,
+                            "Operand must be a number.".to_string()
+                        )),
                 },
             
             // A panic here indicates an error in the parser. [1] 

@@ -84,7 +84,7 @@ pub fn assign(local: &mut Environment, token: &Token, value: &Object) -> Result<
                     None =>
                         Err(Error::new(
                             token,
-                            format!("Undefined variable '{}'.", name).as_str(),
+                            format!("Undefined variable '{}'.", name),
                         )),
                 }
             }
@@ -106,7 +106,7 @@ pub fn get(local: &Environment, token: &Token) -> Result<Object, Error> {
                         None =>
                             Err(Error::new(
                                 token,
-                                format!("Undefined variable '{}'.", name).as_str(),
+                                format!("Undefined variable '{}'.", name),
                             ))
                     }
             }
