@@ -140,7 +140,9 @@ impl Parser {
 
         let else_branch = if self.advance_if(&[TT::Else]).is_some() {
             Some(Box::new(self.statement()?))
-        } else { None };
+        } else {
+            None
+        };
 
         Ok(Stmt::If(condition, then_branch, else_branch))
     }
@@ -228,10 +230,8 @@ impl Parser {
         let expr: Expr = self.or()?;
 
         if let Some(equals) = self.advance_if(&[TT::Equal]) {
-            let value: Expr = match self.assignment() {
-                Ok(value) => value,
-                Err(error) => error.recover()?,
-            };
+            let value: Expr = self.assignment()
+                .map_or_else(|e| e.recover(), |t| Ok(t))?;
 
             return match expr {
                 Expr::Variable(name) =>
@@ -289,7 +289,61 @@ impl Parser {
             return Ok(Expr::Unary(operator, Box::new(right)));
         }
 
-        self.primary()
+        self.call()
+    }
+
+    fn call(&mut self) -> Result<Expr, Error> {
+        let mut expr = self.primary()?;
+
+        loop {
+            if self.advance_if(&[TT::LeftParen]).is_some() {
+                expr = self.finish_call(expr)
+                    .map_or_else(|e| e.recover(), |t| Ok(t))?;
+            } else {
+                break;
+            }
+        }
+
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Expr) -> Result<Expr, Error> {
+        let mut arguments = Vec::new();
+        let mut too_many = false;
+
+        if !self.check(&TT::RightParen) {
+            arguments.push(self.expression()?);
+
+            while self.advance_if(&[TT::Comma]).is_some() {
+                let argument = self.expression()?;
+
+                if !too_many {
+                    if arguments.len() + 1 >= 255 {
+                        too_many = true;
+                    } else {
+                        arguments.push(argument);
+                    }
+                }
+            }
+        }
+
+        let paren = self.expect(TT::RightParen, "Expect ')' after arguments.")?;
+
+        let callable = Expr::Call(
+            Box::new(callee),
+            Token::clone(&paren),
+            arguments
+        );
+
+        if too_many {
+            return Err(Error::new(
+                paren,
+                "Can't have more than 255 arguments.",
+                Some(callable)
+            ));
+        }
+        
+        Ok(callable)
     }
 
     fn primary(&mut self) -> Result<Expr, Error> {
@@ -411,3 +465,9 @@ impl Parser {
 // invalid assignment targets on the way up, though. Bob's implementation kicks
 // up the malformed assignment target but never evaluates the AST. Mine does
 // the opposite.
+
+// [2]
+
+// Again, our implmentation differs here. If we detect excess arguments we
+// simply report and ignore them. We could flip a mutable switch in the parser
+// to prevent the interpreter from executing.
