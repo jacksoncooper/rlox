@@ -15,16 +15,6 @@ impl Error {
     fn new(token: Token, message: &'static str, recoverable: Option<Expr>) -> Error {
         Error { token, message, recoverable }
     }
-
-    fn recover(self) -> Result<Expr, Error> {
-        match self.recoverable {
-            Some(expr) => {
-                error::parse_error(&self.token, self.message);
-                Ok(expr)
-            },
-            None => Err(self),
-        }
-    }
 }
 
 fn to_object(token: Token) -> Object {
@@ -42,14 +32,16 @@ type Tokens = std::iter::Peekable<std::vec::IntoIter<Token>>;
 
 pub struct Parser {
     tokens: Tokens,
-    statements: Option<Vec<Stmt>>
+    statements: Option<Vec<Stmt>>,
+    recovered: bool,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Parser {
         Parser {
             tokens: tokens.into_iter().peekable(),
-            statements: None
+            statements: None,
+            recovered: false,
         }
     }
 
@@ -69,7 +61,7 @@ impl Parser {
             }
         }
 
-        if !had_error {
+        if !had_error && !self.recovered {
             self.statements = Some(statements);
         }
     }
@@ -231,7 +223,7 @@ impl Parser {
 
         if let Some(equals) = self.advance_if(&[TT::Equal]) {
             let value: Expr = self.assignment()
-                .map_or_else(|e| e.recover(), |t| Ok(t))?;
+                .map_or_else(|e| self.recover(e), |t| Ok(t))?;
 
             return match expr {
                 Expr::Variable(name) =>
@@ -298,7 +290,7 @@ impl Parser {
         loop {
             if self.advance_if(&[TT::LeftParen]).is_some() {
                 expr = self.finish_call(expr)
-                    .map_or_else(|e| e.recover(), |t| Ok(t))?;
+                    .map_or_else(|e| self.recover(e), |t| Ok(t))?;
             } else {
                 break;
             }
@@ -432,6 +424,17 @@ impl Parser {
         Err(Error::new(self.advance(), message, None))
     }
 
+    fn recover(&mut self, error: Error) -> Result<Expr, Error> {
+        match error.recoverable {
+            Some(expr) => {
+                error::parse_error(&error.token, error.message);
+                self.recovered = true;
+                Ok(expr)
+            },
+            None => Err(error),
+        }
+    }
+
     fn synchronize(&mut self) {
         while !self.is_at_end() {
             // If the current Token is a semicolon, the next Token starts a new
@@ -456,18 +459,11 @@ impl Parser {
 
 // [1]
 
-// An invalid assignment target is a recoverable error! Don't panic! TODO:
-// Because Rust doesn't have exceptions, and I'm not using global mutable
-// state, which I'm not even sure Rust supports, this Lox implementation
-// excises the bad target and replaces it with its well-formed right operand. I
-// don't fully understand why we don't immediately synchronize. Each operand to
-// each assignment is fully parsed on the way down. We get to report multiple
-// invalid assignment targets on the way up, though. Bob's implementation kicks
-// up the malformed assignment target but never evaluates the AST. Mine does
-// the opposite.
-
-// [2]
-
-// Again, our implmentation differs here. If we detect excess arguments we
-// simply report and ignore them. We could flip a mutable switch in the parser
-// to prevent the interpreter from executing.
+// An invalid assignment target is a recoverable error! Don't panic! This
+// implementation excises the bad target and replaces it with the assignment's
+// well-formed right operand. I don't fully understand why we don't immediately
+// synchronize. Each operand to each assignment is fully parsed on the way
+// down. We get to report multiple invalid assignment targets on the way up,
+// though. Bob's implementation kicks up the malformed assignment target but
+// never evaluates the AST. Mine kicks up the malformed target's value and also
+// doesn't evaluate the AST after the parser recovers from a stumble.
