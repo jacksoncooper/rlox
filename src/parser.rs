@@ -109,6 +109,10 @@ impl Parser {
             return self.if_statement();
         }
 
+        if self.advance_if(&[TT::For]) {
+            return self.for_statement();
+        }
+
         if self.advance_if(&[TT::LeftBrace]) {
             return Ok(Stmt::Block(self.block()?));
         }
@@ -136,6 +140,45 @@ impl Parser {
         } else { None };
 
         Ok(Stmt::If(condition, then_branch, else_branch))
+    }
+
+    fn for_statement(&mut self) -> Result<Stmt, Error> {
+        self.expect(TT::LeftParen, "Expect '(' after 'for'.")?;
+
+        let initializer: Option<Stmt> =
+            if self.advance_if(&[TT::Semicolon]) { None }
+            else if self.advance_if(&[TT::Var]) { Some(self.variable_declaration()?) }
+            else { Some(self.expression_statement()?) };
+
+        let condition: Option<Expr> =
+            if self.check(&TT::Semicolon) { None }
+            else { Some(self.expression()?) };
+
+        self.expect(TT::Semicolon, "Expect ';' after loop condition.")?;
+
+        let increment: Option<Expr> =
+            if self.check(&TT::RightParen) { None }
+            else { Some(self.expression()?) };
+
+        self.expect(TT::RightParen, "Expect ')' after for clauses.")?;
+
+        let mut body: Stmt = self.statement()?;
+
+        if let Some(increment) = increment {
+            body = Stmt::Block(vec![body, Stmt::Expression(increment)]);
+        }
+
+        let condition: Expr = condition.unwrap_or(
+            Expr::Literal(Object::Boolean(true))
+        );
+
+        body = Stmt::While(condition, Box::new(body));
+
+        if let Some(initializer) = initializer {
+            body = Stmt::Block(vec![initializer, body]);
+        }
+
+        Ok(body)
     }
 
     fn block(&mut self) -> Result<Vec<Stmt>, Error> {
