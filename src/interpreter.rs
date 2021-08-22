@@ -1,3 +1,4 @@
+use crate::callable::Callable;
 use crate::environment as env;
 use crate::error;
 use crate::expression::Expr;
@@ -8,7 +9,7 @@ use crate::token_type::TokenType as TT;
 
 #[derive(Debug)]
 
-pub struct Error {
+struct Error {
     token: Token,
     message: String,
 }
@@ -25,7 +26,9 @@ pub struct Interpreter {
 
 impl Interpreter {
     pub fn new() -> Interpreter {
-        Interpreter { local: env::new() }
+        let mut globals = env::new();
+        env::define(&mut globals, "clock", &Object::Callable(Callable::Clock));
+        Interpreter { local: globals }
     }
 
     pub fn interpret(
@@ -53,8 +56,8 @@ impl Interpreter {
                 self.execute_if(condition, then_branch, else_branch),
             Stmt::Print(value) =>
                 self.execute_print(value),
-            Stmt::Var(name, initializer) =>
-                self.execute_variable_declaration(name, initializer),
+            Stmt::Var(identifier, initializer) =>
+                self.execute_variable_declaration(identifier, initializer),
             Stmt::While(condition, body) =>
                 self.execute_while(condition, body),
         }
@@ -113,9 +116,11 @@ impl Interpreter {
 
     fn execute_variable_declaration(
         &mut self,
-        token: &Token,
+        identifier: &Token,
         initializer: &Option<Expr>
     ) -> Result<(), Error> {
+        let name = to_name(identifier);
+
         let value: Object = match initializer {
             Some(initializer) => {
                 let value: Object = self.evaluate(initializer)?;
@@ -124,7 +129,7 @@ impl Interpreter {
             None => Object::Nil,
         };
 
-        env::define(&mut self.local, token, &value);
+        env::define(&mut self.local, name, &value);
 
         Ok(())
     }
@@ -148,12 +153,12 @@ impl Interpreter {
         // maybe?
 
         match expr {
-            Expr::Assignment(name, value) =>
-                self.evaluate_assignment(name, value),
+            Expr::Assignment(identifier, value) =>
+                self.evaluate_assignment(identifier, value),
             Expr::Binary(left, operator, right) =>
                 self.evaluate_binary(left, operator, right),
-            Expr::Call(callee, _, arguments) =>
-                unimplemented!(),
+            Expr::Call(callee, paren, arguments) =>
+                self.evaluate_call(callee, paren, arguments),
             Expr::Grouping(grouping) =>
                 self.evaluate(grouping),
             Expr::Literal(value) =>
@@ -162,20 +167,28 @@ impl Interpreter {
                 self.evaluate_logical(left, operator, right),
             Expr::Unary(operator, right) =>
                 self.evaluate_unary(operator, right),
-            Expr::Variable(name) =>
+            Expr::Variable(identifier) =>
                 // This one has a side effect, so we need to pass it &mut self.
-                self.evaluate_variable(name),
+                self.evaluate_variable(identifier),
         }
     }
 
     fn evaluate_assignment(
         &mut self,
-        name: &Token,
+        identifier: &Token,
         value: &Expr
     ) -> Result<Object, Error> {
+        let name = to_name(identifier);
         let value: Object = self.evaluate(value)?;
-        env::assign(&mut self.local, name, &value)?;
-        Ok(value)
+
+        if env::assign(&mut self.local, name, &value) {
+            Ok(value)
+        } else {
+            Err(Error::new(
+                identifier,
+                format!("Undefined variable '{}'.", name)
+            ))
+        }
     }
 
     #[allow(clippy::float_cmp)]
@@ -292,6 +305,41 @@ impl Interpreter {
         }
     }
 
+    fn evaluate_call(
+        &mut self,
+        callee: &Expr,
+        paren: &Token,
+        arguments: &[Expr],
+    ) -> Result<Object, Error> {
+        let callee = self.evaluate(callee)?;
+
+        return if let Object::Callable(callable) = callee {
+            let mut objects = Vec::new();
+
+            for argument in arguments {
+                objects.push(self.evaluate(argument)?);
+            }
+
+            if arguments.len() != callable.arity() as usize {
+                return Err(Error::new(
+                    paren,
+                    format!(
+                        "Expected {} arguments but got {}.",
+                        callable.arity(),
+                        arguments.len()
+                    )
+                ));
+            }
+
+            Ok(callable.call(self, objects))
+        } else {
+            Err(Error::new(
+                paren,
+                "Can only call functions and classes.".to_string()
+            ))
+        }
+    }
+
     fn evaluate_logical(
         &mut self,
         left: &Expr,
@@ -350,8 +398,17 @@ impl Interpreter {
         }
     }
 
-    fn evaluate_variable(&self, token: &Token) -> Result<Object, Error> {
-        env::get(&self.local, token)
+    fn evaluate_variable(&self, identifier: &Token) -> Result<Object, Error> {
+        let name = to_name(identifier);
+
+        if let Some(object) = env::get(&self.local, name) {
+            Ok(object)
+        } else {
+            Err(Error::new(
+                identifier,
+                format!("Undefined variable '{}'.", name)
+            ))
+        }
     }
 }
 
@@ -364,6 +421,13 @@ fn is_truthy(operand: &Object) -> bool {
         Object::Nil            => false,
         Object::Boolean(false) => false,
         _                      => true,
+    }
+}
+
+fn to_name(token: &Token) -> &str {
+    match token.token_type {
+        TT::Identifier(ref name) => name,
+        _ => panic!("token is not an identifier")
     }
 }
 

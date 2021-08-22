@@ -1,5 +1,6 @@
 pub mod lox;
 
+mod callable;
 mod interpreter;
 mod environment;
 mod expression;
