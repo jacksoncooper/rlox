@@ -8,7 +8,6 @@ use crate::token::Token;
 use crate::token_type::TokenType as TT;
 
 #[derive(Debug)]
-
 struct Error {
     token: Token,
     message: String,
@@ -92,10 +91,8 @@ impl Interpreter {
     }
 
     fn execute_if(
-        &mut self,
-        condition: &Expr,
-        then_branch: &Stmt,
-        else_branch: &Option<Box<Stmt>>
+        &mut self, condition: &Expr,
+        then_branch: &Stmt, else_branch: &Option<Box<Stmt>>
     ) -> Result<(), Error> {
         let go_then = is_truthy(&self.evaluate(condition)?);
         
@@ -116,8 +113,7 @@ impl Interpreter {
 
     fn execute_variable_declaration(
         &mut self,
-        identifier: &Token,
-        initializer: &Option<Expr>
+        identifier: &Token, initializer: &Option<Expr>
     ) -> Result<(), Error> {
         let name = to_name(identifier);
 
@@ -134,11 +130,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn execute_while(
-        &mut self,
-        condition: &Expr,
-        body: &Stmt
-    ) -> Result<(), Error> {
+    fn execute_while(&mut self, condition: &Expr, body: &Stmt) -> Result<(), Error> {
         while is_truthy(&self.evaluate(condition)?) {
             self.execute(body)?;
         }
@@ -175,8 +167,7 @@ impl Interpreter {
 
     fn evaluate_assignment(
         &mut self,
-        identifier: &Token,
-        value: &Expr
+        identifier: &Token, value: &Expr
     ) -> Result<Object, Error> {
         let name = to_name(identifier);
         let value: Object = self.evaluate(value)?;
@@ -194,9 +185,7 @@ impl Interpreter {
     #[allow(clippy::float_cmp)]
     fn evaluate_binary(
         &mut self,
-        left: &Expr,
-        operator: &Token, 
-        right: &Expr
+        left: &Expr, operator: &Token, right: &Expr
     ) -> Result<Object, Error> {
         let left  = self.evaluate(left)?;
         let right = self.evaluate(right)?;
@@ -307,9 +296,7 @@ impl Interpreter {
 
     fn evaluate_call(
         &mut self,
-        callee: &Expr,
-        paren: &Token,
-        arguments: &[Expr],
+        callee: &Expr, paren: &Token, arguments: &[Expr],
     ) -> Result<Object, Error> {
         let callee = self.evaluate(callee)?;
 
@@ -342,9 +329,7 @@ impl Interpreter {
 
     fn evaluate_logical(
         &mut self,
-        left: &Expr,
-        operator: &Token,
-        right: &Expr
+        left: &Expr, operator: &Token, right: &Expr
     ) -> Result<Object, Error> {
         // Lox's logical operators are really ~~weird~~ fun. They are only
         // guaranteed to return a value with the truth value of the logical
@@ -373,11 +358,7 @@ impl Interpreter {
         self.evaluate(right)
     }
 
-    fn evaluate_unary(
-        &mut self,
-        operator: &Token,
-        right: &Expr
-    ) -> Result<Object, Error> {
+    fn evaluate_unary(&mut self, operator: &Token, right: &Expr) -> Result<Object, Error> {
         let right: Object = self.evaluate(right)?;
 
         match operator.token_type {

@@ -24,7 +24,7 @@ impl fmt::Display for Expr {
                 write!(f, "({} {} {})", operator.lexeme, left, right),
             Expr::Call(callee, _, expressions) => {
                 let arguments: String = expressions
-                    .into_iter()
+                    .iter()
                     .map(|e| e.to_string())
                     .fold(String::new(), |a, s| format!("{} {}", a, s));
                 write!(f, "(call {}{})", callee, arguments)

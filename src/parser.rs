@@ -223,7 +223,7 @@ impl Parser {
 
         if let Some(equals) = self.advance_if(&[TT::Equal]) {
             let value: Expr = self.assignment()
-                .map_or_else(|e| self.recover(e), |t| Ok(t))?;
+                .map_or_else(|e| self.recover(e), Ok)?;
 
             return match expr {
                 Expr::Variable(name) =>
@@ -290,7 +290,7 @@ impl Parser {
         loop {
             if self.advance_if(&[TT::LeftParen]).is_some() {
                 expr = self.finish_call(expr)
-                    .map_or_else(|e| self.recover(e), |t| Ok(t))?;
+                    .map_or_else(|e| self.recover(e), Ok)?;
             } else {
                 break;
             }
