@@ -27,7 +27,7 @@ impl fmt::Display for Expr {
                     .into_iter()
                     .map(|e| e.to_string())
                     .fold(String::new(), |a, s| format!("{} {}", a, s));
-                write!(f, "(call {} {})", callee, arguments)
+                write!(f, "(call {}{})", callee, arguments)
             },
             Expr::Grouping(grouping) =>
                 write!(f, "(group {})", grouping),

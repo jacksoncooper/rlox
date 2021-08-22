@@ -421,7 +421,11 @@ impl Parser {
             return Ok(self.advance());
         }
 
-        Err(Error::new(self.advance(), message, None))
+        Err(Error::new(
+            Token::clone(self.peek()),
+            message,
+            None
+        ))
     }
 
     fn recover(&mut self, error: Error) -> Result<Expr, Error> {
