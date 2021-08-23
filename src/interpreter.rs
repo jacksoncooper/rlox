@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::callable::Callable;
 use crate::environment as env;
 use crate::error;
@@ -8,7 +10,7 @@ use crate::token::Token;
 use crate::token_type::TokenType as TT;
 
 #[derive(Debug)]
-struct Error {
+pub struct Error {
     token: Token,
     message: String,
 }
@@ -20,6 +22,7 @@ impl Error {
 }
 
 pub struct Interpreter {
+    globals: env::Environment,
     local: env::Environment,
 }
 
@@ -27,7 +30,15 @@ impl Interpreter {
     pub fn new() -> Interpreter {
         let mut globals = env::new();
         env::define(&mut globals, "clock", &Object::Callable(Callable::Clock));
-        Interpreter { local: globals }
+
+        let mut local = env::new();
+        env::link(&mut local, &globals);
+
+        Interpreter { globals, local }
+    }
+
+    pub fn globals(&mut self) -> env::Environment {
+        env::copy(&self.globals)
     }
 
     pub fn interpret(
@@ -48,11 +59,11 @@ impl Interpreter {
     fn execute(&mut self, stmt: &Stmt) -> Result<(), Error> {
         match stmt {
             Stmt::Block(statements) =>
-                self.execute_block(statements),
+                self.execute_block(statements, env::copy(&self.local)),
             Stmt::Expression(expression) =>
                 self.execute_expression(expression),
-            Stmt::Function(_, _, _) =>
-                unimplemented!(),
+            Stmt::Function(identifier, parameters, body) =>
+                self.execute_function_definition(identifier, parameters, body),
             Stmt::If(condition, then_branch, else_branch) =>
                 self.execute_if(condition, then_branch, else_branch),
             Stmt::Print(value) =>
@@ -64,22 +75,25 @@ impl Interpreter {
         }
     }
 
-    fn execute_block(&mut self, statements: &[Stmt]) -> Result<(), Error> {
-        let old_local = env::copy(&self.local);
-
+    pub fn execute_block(
+            &mut self,
+            statements: &[Stmt],
+            old_local: env::Environment
+    ) -> Result<(), Error> {
         let mut new_local = env::new();
+
         env::link(&mut new_local, &old_local);
 
         self.local = new_local;
 
         for statement in statements {
-            let status = self.execute(statement);
+            let result = self.execute(statement);
 
             // If the statement is in error, restore the previous environment
             // before bubbling the runtime error. There's no reason to do this
             // but it makes me feel nice.
 
-            if status.is_err() { self.local = old_local; return status; }
+            if result.is_err() { self.local = old_local; return result; }
         }
     
         self.local = old_local;
@@ -89,6 +103,19 @@ impl Interpreter {
 
     fn execute_expression(&mut self, expr: &Expr) -> Result<(), Error>{
         self.evaluate(expr)?;
+        Ok(())
+    }
+
+    fn execute_function_definition(
+        &mut self, identifier: &Rc<Token>,
+        parameters: &Rc<Vec<Token>>, body: &Rc<Vec<Stmt>>
+    ) -> Result<(), Error> {
+        let function = Object::Callable(Callable::Function(
+            Rc::clone(identifier), Rc::clone(parameters), Rc::clone(body)
+        ));
+
+        env::define(&mut self.local, to_name(identifier), &function);
+
         Ok(())
     }
 
@@ -309,7 +336,12 @@ impl Interpreter {
                 objects.push(self.evaluate(argument)?);
             }
 
-            if arguments.len() != callable.arity() as usize {
+            if arguments.len() > 255 {
+                // A panic here indicates a failure in the parser.
+                panic!("more than 255 arguments");
+            }
+
+            if arguments.len() as u8 != callable.arity() {
                 return Err(Error::new(
                     paren,
                     format!(
@@ -320,7 +352,7 @@ impl Interpreter {
                 ));
             }
 
-            Ok(callable.call(self, objects))
+            callable.call(self, objects)
         } else {
             Err(Error::new(
                 paren,
@@ -407,9 +439,11 @@ fn is_truthy(operand: &Object) -> bool {
     }
 }
 
-fn to_name(token: &Token) -> &str {
+pub fn to_name(token: &Token) -> &str {
     match token.token_type {
         TT::Identifier(ref name) => name,
+
+        // A panic here represents a failure in the parser.
         _ => panic!("token is not an identifier")
     }
 }

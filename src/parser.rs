@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::error;
 use crate::object::Object;
 use crate::expression::Expr;
@@ -103,7 +105,7 @@ impl Parser {
 
         let body = self.block()?;
 
-        Ok(Stmt::Function(name, parameters, body))
+        Ok(Stmt::Function(Rc::new(name), Rc::new(parameters), Rc::new(body)))
     }
 
     fn parameters(&mut self) -> Result<Vec<Token>, Error> {
@@ -520,10 +522,8 @@ impl Parser {
     }
 
     fn synchronize(&mut self) {
-        // Discard the Token that caused the panic. As long as the other
-        // methods maintain the invariant that the Token that spooked them is
-        // unconsumed it's okay to consume it here.
-        self.advance();
+        // Discard the Token that caused the panic.
+        if !self.is_at_end() { self.advance(); }
 
         while !self.is_at_end() {
             // If the current Token is a semicolon, the next Token starts a new
