@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::expression::Expr;
 use crate::token::Token;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum Stmt {
     Block(Vec<Stmt>),
     Expression(Expr),
