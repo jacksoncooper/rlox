@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use std::fmt;
 
 use crate::callable::Callable;
@@ -8,8 +9,8 @@ pub enum Object {
     Boolean(bool),
     Callable(Callable),
     Nil,
-    Number(f64),
-    String(String),
+    Number(Rc<f64>),
+    String(Rc<String>),
 }
 
 impl fmt::Display for Object {

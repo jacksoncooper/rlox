@@ -268,7 +268,7 @@ impl Interpreter {
             TT::Minus =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
-                        Ok(Object::Number(left - right)),
+                        Ok(Object::Number(Rc::new(*left - *right))),
                 _ =>
                     Err(Error::new(
                         operator,
@@ -278,12 +278,12 @@ impl Interpreter {
             TT::Plus =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
-                        Ok(Object::Number(left + right)),
+                        Ok(Object::Number(Rc::new(*left + *right))),
                     (Object::String(left), Object::String(right)) => {
                         let mut concatenation = String::new();
                         concatenation.push_str(&left);
                         concatenation.push_str(&right);
-                        Ok(Object::String(concatenation))
+                        Ok(Object::String(Rc::new(concatenation)))
                     },
                     _ =>
                         Err(Error::new(
@@ -294,8 +294,8 @@ impl Interpreter {
             TT::Slash =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
-                        if right != 0 as f64 {
-                            Ok(Object::Number(left / right))
+                        if *right != 0 as f64 {
+                            Ok(Object::Number(Rc::new(*left / *right)))
                         } else {
                             Err(Error::new(
                                 operator,
@@ -311,7 +311,7 @@ impl Interpreter {
             TT::Star =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
-                        Ok(Object::Number(left * right)),
+                        Ok(Object::Number(Rc::new(*left * *right))),
                     _ =>
                         Err(Error::new(
                             operator,
@@ -401,7 +401,7 @@ impl Interpreter {
                 Ok(Object::Boolean(!is_truthy(&right))),
             TT::Minus =>
                 match right {
-                    Object::Number(float) => Ok(Object::Number(-float)),
+                    Object::Number(float) => Ok(Object::Number(Rc::new(-*float))),
                     _ =>
                         Err(Error::new(
                             operator,

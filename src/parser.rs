@@ -22,8 +22,8 @@ fn to_object(token: Token) -> Object {
     match token.token_type {
         TT::False          => Object::Boolean(false),
         TT::True           => Object::Boolean(true),
-        TT::Number(float)  => Object::Number(float),
-        TT::String(string) => Object::String(string),
+        TT::Number(float)  => Object::Number(Rc::new(float)),
+        TT::String(string) => Object::String(Rc::new(string)),
         TT::Nil            => Object::Nil,
         _                  => panic!("token does not contain a literal")
     }

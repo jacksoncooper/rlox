@@ -6,5 +6,20 @@ fun say_hi(first, last) {
     print "Hi, " + first + " " + last + "!";
 }
 
-add("Dear", "Reader");
 say_hi("Dear", "Reader");
+add("Dear", "Reader");
+
+print say_hi == add;
+
+var breakfast = "oatmeal";
+
+// No need to derive Eq because the shell of a Lox object is copied every time
+// it is recalled.
+
+print breakfast == breakfast;
+
+{
+    var a;
+    print (a = -3.14);
+    print a;
+}

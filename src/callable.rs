@@ -41,7 +41,7 @@ impl Callable {
 
                 Ok(now.map_or_else(
                     |_| Object::Nil,
-                    |t| Object::Number(t.as_secs_f64())
+                    |t| Object::Number(Rc::new(t.as_secs_f64()))
                 ))
             },
             Callable::Function(_, parameters, body) => {
