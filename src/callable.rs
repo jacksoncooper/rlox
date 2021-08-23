@@ -15,7 +15,7 @@ impl Callable {
         }
     }
 
-    pub fn call(&self, interpreter: &Interpreter, arguments: Vec<Object>) -> Object {
+    pub fn call(&self, _: &Interpreter, _: Vec<Object>) -> Object {
         match self {
             Callable::Clock => {
                 let now = SystemTime::now()

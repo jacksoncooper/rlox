@@ -400,20 +400,22 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Expr, Error> {
-        let token = self.advance();
+        let next = self.peek();
 
-        if let TT::Identifier(_) = token.token_type {
-            return Ok(Expr::Variable(token));
+        if let TT::Identifier(_) = next.token_type {
+            return Ok(Expr::Variable(self.advance()));
         }
 
         if let TT::False     | TT::True
             |  TT::Number(_) | TT::String(_)
             |  TT::Nil
-            = token.token_type {
-            return Ok(Expr::Literal(to_object(token)));
+            = next.token_type {
+            return Ok(Expr::Literal(to_object(self.advance())));
         }
 
-        if let TT::LeftParen = token.token_type {
+        if let TT::LeftParen = next.token_type {
+            self.advance();
+
             let group: Expr = self.expression()?;
 
             self.expect(
@@ -424,10 +426,16 @@ impl Parser {
             return Ok(Expr::Grouping(Box::new(group)));
         }
 
-        Err(Error::new(token, "Expect expression.".to_string()))
+        Err(Error::new(
+            Token::clone(next),
+            "Expect expression.".to_string()
+        ))
     }
 
-    fn binary<E, O>(&mut self, operators: &[TT], operand: &O, expression: &E) -> Result<Expr, Error>
+    fn binary<E, O>(
+        &mut self,
+        operators: &[TT], operand: &O, expression: &E
+    ) -> Result<Expr, Error>
         where
             O: Fn(&mut Self) -> Result<Expr, Error>,
             E: Fn(Box<Expr>, Token, Box<Expr>) -> Expr
@@ -512,6 +520,11 @@ impl Parser {
     }
 
     fn synchronize(&mut self) {
+        // Discard the Token that caused the panic. As long as the other
+        // methods maintain the invariant that the Token that spooked them is
+        // unconsumed it's okay to consume it here.
+        self.advance();
+
         while !self.is_at_end() {
             // If the current Token is a semicolon, the next Token starts a new
             // statement.

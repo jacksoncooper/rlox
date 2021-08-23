@@ -51,7 +51,7 @@ impl Interpreter {
                 self.execute_block(statements),
             Stmt::Expression(expression) =>
                 self.execute_expression(expression),
-            Stmt::Function(name, parameters, body) =>
+            Stmt::Function(_, _, _) =>
                 unimplemented!(),
             Stmt::If(condition, then_branch, else_branch) =>
                 self.execute_if(condition, then_branch, else_branch),
