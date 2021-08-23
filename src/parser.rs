@@ -7,13 +7,12 @@ use crate::token_type::TokenType as TT;
 
 struct Error {
     token: Token,
-    message: &'static str,
-    recoverable: Option<Expr>,
+    message: String,
 }
 
 impl Error {
-    fn new(token: Token, message: &'static str, recoverable: Option<Expr>) -> Error {
-        Error { token, message, recoverable }
+    fn new(token: Token, message: String) -> Error {
+        Error { token, message }
     }
 }
 
@@ -33,7 +32,7 @@ type Tokens = std::iter::Peekable<std::vec::IntoIter<Token>>;
 pub struct Parser {
     tokens: Tokens,
     statements: Option<Vec<Stmt>>,
-    recovered: bool,
+    stumbled: bool,
 }
 
 impl Parser {
@@ -41,7 +40,7 @@ impl Parser {
         Parser {
             tokens: tokens.into_iter().peekable(),
             statements: None,
-            recovered: false,
+            stumbled: false,
         }
     }
 
@@ -54,14 +53,14 @@ impl Parser {
                 Ok(declaration) =>
                     statements.push(declaration),
                 Err(panic) => {
-                    error::parse_error(&panic.token, panic.message);
+                    error::parse_error(&panic.token, &panic.message);
                     had_error = true;
                     self.synchronize();
                 }
             }
         }
 
-        if !had_error && !self.recovered {
+        if !had_error && !self.stumbled {
             self.statements = Some(statements);
         }
     }
@@ -74,6 +73,10 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Stmt, Error> {
+        if self.advance_if(&[TT::Fun]).is_some() {
+            return self.function("function");
+        }
+
         if self.advance_if(&[TT::Var]).is_some() {
             return self.variable_declaration();
         }
@@ -81,22 +84,85 @@ impl Parser {
         self.statement()
     }
 
-    fn variable_declaration(&mut self) -> Result<Stmt, Error> {
-        let name = self.advance();
+    fn function(&mut self, kind: &str) -> Result<Stmt, Error> {
+        let name = self.expect_identifier(
+            format!("Expect {} name.", kind)
+        )?;
 
-        if let TT::Identifier(_) = name.token_type {
-            let initializer = if self.advance_if(&[TT::Equal]).is_some() {
-                Some(self.expression()?)
-            } else {
-                None
-            };
-        
-            self.expect(TT::Semicolon, "Expect ';' after variable declaration.")?;
+        self.expect(
+            TT::LeftParen,
+            format!("Expect '(' after {} name.", kind)
+        )?;
 
-            Ok(Stmt::Var(name, initializer))
-        } else {
-            Err(Error::new(name, "Expect variable name.", None))
+        let parameters = self.parameters()?;
+
+        self.expect(
+            TT::LeftBrace,
+            format!("Expect '{{' before {} body.", kind)
+        )?;
+
+        let body = self.block()?;
+
+        Ok(Stmt::Function(name, parameters, body))
+    }
+
+    fn parameters(&mut self) -> Result<Vec<Token>, Error> {
+        let mut parameters = Vec::new();
+        let mut too_many = false;
+    
+        if !self.check(&TT::RightParen) {
+            parameters.push(self.parameter()?);
+
+            while self.advance_if(&[TT::Comma]).is_some() {
+                if !too_many {
+                    parameters.push(self.parameter()?);
+                    if parameters.len() >= 255 {
+                        too_many = true;
+                    }
+                }
+            }
         }
+
+        let paren = self.expect(
+            TT::RightParen,
+            "Expect ')' after parameters.".to_string(),
+        )?;
+
+        if too_many {
+            self.stumble(
+                &paren,
+                "Can't have more than 255 arguments."
+            );
+        }
+
+        Ok(parameters)
+    }
+
+    fn parameter(&mut self) -> Result<Token, Error> {
+        let parameter = self.expect_identifier(
+            "Expect parameter name.".to_string()
+        )?;
+
+        Ok(parameter)
+    }
+
+    fn variable_declaration(&mut self) -> Result<Stmt, Error> {
+        let name = self.expect_identifier(
+            "Expect variable name.".to_string()
+        )?;
+
+        let initializer = if self.advance_if(&[TT::Equal]).is_some() {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+    
+        self.expect(
+            TT::Semicolon,
+            "Expect ';' after variable declaration.".to_string(),
+        )?;
+
+        Ok(Stmt::Var(name, initializer))
     }
 
     fn statement(&mut self) -> Result<Stmt, Error> {
@@ -124,9 +190,9 @@ impl Parser {
     }
 
     fn if_statement(&mut self) -> Result<Stmt, Error> {
-        self.expect(TT::LeftParen, "Expect '(' after 'if'.")?;
+        self.expect(TT::LeftParen, "Expect '(' after 'if'.".to_string())?;
         let condition = self.expression()?;
-        self.expect(TT::RightParen, "Expect ')' after condition.")?;
+        self.expect(TT::RightParen, "Expect ')' after condition.".to_string())?;
 
         let then_branch = Box::new(self.statement()?);
 
@@ -140,7 +206,7 @@ impl Parser {
     }
 
     fn for_statement(&mut self) -> Result<Stmt, Error> {
-        self.expect(TT::LeftParen, "Expect '(' after 'for'.")?;
+        self.expect(TT::LeftParen, "Expect '(' after 'for'.".to_string())?;
 
         let initializer: Option<Stmt> =
             if self.advance_if(&[TT::Semicolon]).is_some() {
@@ -155,13 +221,13 @@ impl Parser {
             if self.check(&TT::Semicolon) { None }
             else { Some(self.expression()?) };
 
-        self.expect(TT::Semicolon, "Expect ';' after loop condition.")?;
+        self.expect(TT::Semicolon, "Expect ';' after loop condition.".to_string())?;
 
         let increment: Option<Expr> =
             if self.check(&TT::RightParen) { None }
             else { Some(self.expression()?) };
 
-        self.expect(TT::RightParen, "Expect ')' after for clauses.")?;
+        self.expect(TT::RightParen, "Expect ')' after for clauses.".to_string())?;
 
         let mut body: Stmt = self.statement()?;
 
@@ -189,28 +255,28 @@ impl Parser {
             statements.push(self.declaration()?);
         }
 
-        self.expect(TT::RightBrace, "Expect '}' after block.")?;
+        self.expect(TT::RightBrace, "Expect '}' after block.".to_string())?;
 
         Ok(statements)
     }
 
     fn print_statement(&mut self) -> Result<Stmt, Error> {
         let value: Expr = self.expression()?;
-        self.expect(TT::Semicolon, "Expect ';' after value.")?;
+        self.expect(TT::Semicolon, "Expect ';' after value.".to_string())?;
         Ok(Stmt::Print(value))
     }
 
     fn while_statement(&mut self) -> Result<Stmt, Error> {
-        self.expect(TT::LeftParen, "Expect '(' after 'while'.")?;
+        self.expect(TT::LeftParen, "Expect '(' after 'while'.".to_string())?;
         let condition = self.expression()?;
-        self.expect(TT::RightParen, "Expect ')' after condition.")?;
+        self.expect(TT::RightParen, "Expect ')' after condition.".to_string())?;
         let body = Box::new(self.statement()?);
         Ok(Stmt::While(condition, body))
     }
 
     fn expression_statement(&mut self) -> Result<Stmt, Error> {
         let expression: Expr = self.expression()?;
-        self.expect(TT::Semicolon, "Expect ';' after expression.")?;
+        self.expect(TT::Semicolon, "Expect ';' after expression.".to_string())?;
         Ok(Stmt::Expression(expression))
     }
 
@@ -222,18 +288,15 @@ impl Parser {
         let expr: Expr = self.or()?;
 
         if let Some(equals) = self.advance_if(&[TT::Equal]) {
-            let value: Expr = self.assignment()
-                .map_or_else(|e| self.recover(e), Ok)?;
+            let value: Expr = self.assignment()?;
 
             return match expr {
                 Expr::Variable(name) =>
                     Ok(Expr::Assignment(name, Box::new(value))), // [1]
-                _ =>
-                    Err(Error::new(
-                        equals,
-                        "Invalid assignment target.",
-                        Some(value)
-                    )),
+                _ => {
+                    self.stumble(&equals, "Invalid assignment target.");
+                    Ok(value)
+                }
             };
         }
 
@@ -289,8 +352,7 @@ impl Parser {
 
         loop {
             if self.advance_if(&[TT::LeftParen]).is_some() {
-                expr = self.finish_call(expr)
-                    .map_or_else(|e| self.recover(e), Ok)?;
+                expr = self.finish_call(expr)?;
             } else {
                 break;
             }
@@ -307,19 +369,19 @@ impl Parser {
             arguments.push(self.expression()?);
 
             while self.advance_if(&[TT::Comma]).is_some() {
-                let argument = self.expression()?;
-
                 if !too_many {
-                    if arguments.len() + 1 >= 255 {
+                    arguments.push(self.expression()?);
+                    if arguments.len() >= 255 {
                         too_many = true;
-                    } else {
-                        arguments.push(argument);
                     }
                 }
             }
         }
 
-        let paren = self.expect(TT::RightParen, "Expect ')' after arguments.")?;
+        let paren = self.expect(
+            TT::RightParen,
+            "Expect ')' after arguments.".to_string()
+        )?;
 
         let callable = Expr::Call(
             Box::new(callee),
@@ -328,11 +390,10 @@ impl Parser {
         );
 
         if too_many {
-            return Err(Error::new(
-                paren,
+            self.stumble(
+                &paren,
                 "Can't have more than 255 arguments.",
-                Some(callable)
-            ));
+            );
         }
         
         Ok(callable)
@@ -354,11 +415,16 @@ impl Parser {
 
         if let TT::LeftParen = token.token_type {
             let group: Expr = self.expression()?;
-            self.expect(TT::RightParen, "Expect ')' after expression.")?;
+
+            self.expect(
+                TT::RightParen,
+                "Expect ')' after expression.".to_string()
+            )?;
+
             return Ok(Expr::Grouping(Box::new(group)));
         }
 
-        Err(Error::new(token, "Expect expression.", None))
+        Err(Error::new(token, "Expect expression.".to_string()))
     }
 
     fn binary<E, O>(&mut self, operators: &[TT], operand: &O, expression: &E) -> Result<Expr, Error>
@@ -416,27 +482,33 @@ impl Parser {
         None
     }
 
-    fn expect(&mut self, token_type: TT, message: &'static str) -> Result<Token, Error> {
+    fn expect(&mut self, token_type: TT, message: String) -> Result<Token, Error> {
         if self.check(&token_type) {
             return Ok(self.advance());
         }
 
         Err(Error::new(
             Token::clone(self.peek()),
-            message,
-            None
+            message
         ))
     }
 
-    fn recover(&mut self, error: Error) -> Result<Expr, Error> {
-        match error.recoverable {
-            Some(expr) => {
-                error::parse_error(&error.token, error.message);
-                self.recovered = true;
-                Ok(expr)
-            },
-            None => Err(error),
+    fn expect_identifier(&mut self, message: String) -> Result<Token, Error> {
+        let next = self.peek();
+
+        if let TT::Identifier(_) = next.token_type {
+            return Ok(self.advance());
         }
+
+        Err(Error::new(
+            Token::clone(next),
+            message
+        ))
+    }
+
+    fn stumble(&mut self, token: &Token, message: &str) {
+        error::parse_error(token, message);
+        self.stumbled = true;
     }
 
     fn synchronize(&mut self) {
