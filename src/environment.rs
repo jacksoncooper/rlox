@@ -12,6 +12,7 @@ use crate::object::Object;
 
 pub type Environment = Rc<RefCell<Bindings>>;
 
+#[derive(Debug)]
 pub struct Bindings {
     enclosing: Option<Environment>,
     values: HashMap<String, Object>,
@@ -24,6 +25,12 @@ pub fn new() -> Environment {
             values: HashMap::new(),
         }
     ))
+}
+
+pub fn new_with_enclosing(enclosing: &Environment) -> Environment {
+    let mut new = new();
+    link(&mut new, enclosing);
+    new
 }
 
 pub fn copy(local: &Environment) -> Environment {

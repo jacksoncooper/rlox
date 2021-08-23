@@ -59,7 +59,10 @@ impl Interpreter {
     fn execute(&mut self, stmt: &Stmt) -> Result<(), Error> {
         match stmt {
             Stmt::Block(statements) =>
-                self.execute_block(statements, env::copy(&self.local)),
+                self.execute_block(
+                    statements,
+                    env::new_with_enclosing(&self.local)
+                ),
             Stmt::Expression(expression) =>
                 self.execute_expression(expression),
             Stmt::Function(identifier, parameters, body) =>
@@ -76,13 +79,11 @@ impl Interpreter {
     }
 
     pub fn execute_block(
-            &mut self,
-            statements: &[Stmt],
-            old_local: env::Environment
+        &mut self,
+        statements: &[Stmt],
+        new_local: env::Environment
     ) -> Result<(), Error> {
-        let mut new_local = env::new();
-
-        env::link(&mut new_local, &old_local);
+        let old_local = env::copy(&self.local);
 
         self.local = new_local;
 
@@ -95,7 +96,7 @@ impl Interpreter {
 
             if result.is_err() { self.local = old_local; return result; }
         }
-    
+   
         self.local = old_local;
 
         Ok(())

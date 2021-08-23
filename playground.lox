@@ -1,5 +1,10 @@
+fun add(one, another) {
+    print one + another;
+}
+
 fun say_hi(first, last) {
     print "Hi, " + first + " " + last + "!";
 }
 
+add("Dear", "Reader");
 say_hi("Dear", "Reader");

@@ -45,8 +45,7 @@ impl Callable {
                 ))
             },
             Callable::Function(_, parameters, body) => {
-                let mut local = env::new();
-                env::link(&mut local, &interpreter.globals());
+                let mut local = env::new_with_enclosing(&interpreter.globals());
 
                 for (parameter, argument) in parameters.iter().zip(&arguments) {
                     env::define(&mut local, int::to_name(parameter), argument);
