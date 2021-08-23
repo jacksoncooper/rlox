@@ -10,6 +10,7 @@ say_hi("Dear", "Reader");
 add("Dear", "Reader");
 
 print say_hi == add;
+print say_hi == say_hi;
 
 var breakfast = "oatmeal";
 
@@ -23,3 +24,10 @@ print breakfast == breakfast;
     print (a = -3.14);
     print a;
 }
+
+fun dopple() { print "me!"; } fun dopple() { print "me too!"; }
+
+print dopple;
+dopple();
+
+print dopple == dopple;

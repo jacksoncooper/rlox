@@ -8,10 +8,21 @@ use crate::object::Object;
 use crate::statement::Stmt;
 use crate::token::Token;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum Callable {
     Clock,
     Function(Rc<Token>, Rc<Vec<Token>>, Rc<Vec<Stmt>>),
+}
+
+impl PartialEq for Callable {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Callable::Clock, Callable::Clock) => true,
+            (Callable::Function(name, ..), Callable::Function(other_name, ..)) =>
+                name == other_name, // [1]
+            _ => false,
+        }
+    }
 }
 
 impl Callable {
@@ -68,3 +79,9 @@ impl fmt::Display for Callable {
         }
     }
 }
+
+// [1]
+
+ // Compare the identifier Token for equality. This contains the line on which
+ // the function is defined. If two functions with the same name are defined on
+ // the same line, the second definition will replace the first.
