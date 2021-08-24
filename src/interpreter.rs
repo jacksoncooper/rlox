@@ -15,6 +15,11 @@ pub struct Error {
     message: String,
 }
 
+pub enum Unwind {
+    Error(Error),
+    Return(Token, Object),
+}
+
 impl Error {
     pub fn new(token: &Token, message: String) -> Error {
         Error { token: Token::clone(token), message }
@@ -22,23 +27,23 @@ impl Error {
 }
 
 pub struct Interpreter {
-    globals: env::Environment,
+    global: env::Environment,
     local: env::Environment,
 }
 
 impl Interpreter {
     pub fn new() -> Interpreter {
-        let mut globals = env::new();
-        env::define(&mut globals, "clock", &Object::Callable(Callable::Clock));
+        let mut global = env::new();
+        env::define(&mut global, "clock", &Object::Callable(Callable::Clock));
 
-        let mut local = env::new();
-        env::link(&mut local, &globals);
-
-        Interpreter { globals, local }
+        Interpreter {
+            global: env::copy(&global),
+            local: env::copy(&global)
+        }
     }
 
-    pub fn globals(&mut self) -> env::Environment {
-        env::copy(&self.globals)
+    pub fn global(&mut self) -> env::Environment {
+        env::copy(&self.global)
     }
 
     pub fn interpret(
@@ -47,7 +52,15 @@ impl Interpreter {
     ) -> Result<(), error::LoxError> {
         for statement in &statements {
             if let Err(error) = self.execute(statement) {
-                error::runtime_error(&error.token, &error.message);
+                match error {
+                    Unwind::Error(error) =>
+                        error::runtime_error(&error.token, &error.message),
+                    Unwind::Return(keyword, _) =>
+                        error::runtime_error(
+                            &keyword,
+                            "Cannot return from top-level code."
+                        ),
+                }
                 // A runtime error kills the interpreter.
                 return Err(error::LoxError::Interpret);
             }
@@ -56,7 +69,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn execute(&mut self, stmt: &Stmt) -> Result<(), Error> {
+    fn execute(&mut self, stmt: &Stmt) -> Result<(), Unwind> {
         match stmt {
             Stmt::Block(statements) =>
                 self.execute_block(
@@ -71,6 +84,8 @@ impl Interpreter {
                 self.execute_if(condition, then_branch, else_branch),
             Stmt::Print(value) =>
                 self.execute_print(value),
+            Stmt::Return(keyword, value) =>
+                self.execute_return(keyword, value),
             Stmt::Var(identifier, initializer) =>
                 self.execute_variable_declaration(identifier, initializer),
             Stmt::While(condition, body) =>
@@ -82,7 +97,7 @@ impl Interpreter {
         &mut self,
         statements: &[Stmt],
         new_local: env::Environment
-    ) -> Result<(), Error> {
+    ) -> Result<(), Unwind> {
         let old_local = env::copy(&self.local);
 
         self.local = new_local;
@@ -102,7 +117,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn execute_expression(&mut self, expr: &Expr) -> Result<(), Error>{
+    fn execute_expression(&mut self, expr: &Expr) -> Result<(), Unwind>{
         self.evaluate(expr)?;
         Ok(())
     }
@@ -110,7 +125,7 @@ impl Interpreter {
     fn execute_function_definition(
         &mut self, identifier: &Rc<Token>,
         parameters: &Rc<Vec<Token>>, body: &Rc<Vec<Stmt>>
-    ) -> Result<(), Error> {
+    ) -> Result<(), Unwind> {
         let function = Object::Callable(Callable::Function(
             Rc::clone(identifier), Rc::clone(parameters), Rc::clone(body)
         ));
@@ -123,7 +138,7 @@ impl Interpreter {
     fn execute_if(
         &mut self, condition: &Expr,
         then_branch: &Stmt, else_branch: &Option<Box<Stmt>>
-    ) -> Result<(), Error> {
+    ) -> Result<(), Unwind> {
         let go_then = is_truthy(&self.evaluate(condition)?);
         
         if go_then {
@@ -135,16 +150,26 @@ impl Interpreter {
         Ok(())
     }
 
-    fn execute_print(&mut self, expr: &Expr) -> Result<(), Error> {
+    fn execute_print(&mut self, expr: &Expr) -> Result<(), Unwind> {
         let value: Object = self.evaluate(expr)?;
         println!("{}", value);
         Ok(())
     }
 
+    fn execute_return(
+        &mut self,
+        keyword: &Token, value: &Expr
+    ) -> Result<(), Unwind> {
+        Err(Unwind::Return(
+            Token::clone(keyword),
+            self.evaluate(value)?
+        ))
+    }
+
     fn execute_variable_declaration(
         &mut self,
         identifier: &Token, initializer: &Option<Expr>
-    ) -> Result<(), Error> {
+    ) -> Result<(), Unwind> {
         let name = to_name(identifier);
 
         let value: Object = match initializer {
@@ -160,7 +185,10 @@ impl Interpreter {
         Ok(())
     }
 
-    fn execute_while(&mut self, condition: &Expr, body: &Stmt) -> Result<(), Error> {
+    fn execute_while(
+        &mut self,
+        condition: &Expr, body: &Stmt
+    ) -> Result<(), Unwind> {
         while is_truthy(&self.evaluate(condition)?) {
             self.execute(body)?;
         }
@@ -168,12 +196,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn evaluate(&mut self, expr: &Expr) -> Result<Object, Error> {
-        // TODO: There's no need to produced an owned Object. The only mutation
-        // occurs in the Environment type. The most glaring problem is cloning
-        // Literal leaves to conform to the return type. Wrap objects in an Rc
-        // maybe?
-
+    fn evaluate(&mut self, expr: &Expr) -> Result<Object, Unwind> {
         match expr {
             Expr::Assignment(identifier, value) =>
                 self.evaluate_assignment(identifier, value),
@@ -198,17 +221,17 @@ impl Interpreter {
     fn evaluate_assignment(
         &mut self,
         identifier: &Token, value: &Expr
-    ) -> Result<Object, Error> {
+    ) -> Result<Object, Unwind> {
         let name = to_name(identifier);
         let value: Object = self.evaluate(value)?;
 
         if env::assign(&mut self.local, name, &value) {
             Ok(value)
         } else {
-            Err(Error::new(
+            Err(Unwind::Error(Error::new(
                 identifier,
                 format!("Undefined variable '{}'.", name)
-            ))
+            )))
         }
     }
 
@@ -216,7 +239,7 @@ impl Interpreter {
     fn evaluate_binary(
         &mut self,
         left: &Expr, operator: &Token, right: &Expr
-    ) -> Result<Object, Error> {
+    ) -> Result<Object, Unwind> {
         let left  = self.evaluate(left)?;
         let right = self.evaluate(right)?;
 
@@ -230,50 +253,50 @@ impl Interpreter {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Boolean(left > right)),
                     _ =>
-                        Err(Error::new(
+                        Err(Unwind::Error(Error::new(
                             operator,
                             "Operands must be numbers.".to_string()
-                        )),
+                        ))),
                 },
             TT::GreaterEqual =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Boolean(left >= right)),
                     _ =>
-                        Err(Error::new(
+                        Err(Unwind::Error(Error::new(
                             operator,
                             "Operands must be numbers.".to_string()
-                        )),
+                        ))),
                 },
             TT::Less =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Boolean(left < right)),
                     _ =>
-                        Err(Error::new(
+                        Err(Unwind::Error(Error::new(
                             operator,
                             "Operands must be numbers.".to_string()
-                        )),
+                        ))),
                 },
             TT::LessEqual =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Boolean(left <= right)),
                     _ =>
-                        Err(Error::new(
+                        Err(Unwind::Error(Error::new(
                             operator,
                             "Operands must be numbers.".to_string()
-                        )),
+                        ))),
                 },
             TT::Minus =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Number(Rc::new(*left - *right))),
                 _ =>
-                    Err(Error::new(
+                    Err(Unwind::Error(Error::new(
                         operator,
                         "Operands must be numbers.".to_string()
-                    )),
+                    ))),
                 },
             TT::Plus =>
                 match (left, right) {
@@ -286,10 +309,10 @@ impl Interpreter {
                         Ok(Object::String(Rc::new(concatenation)))
                     },
                     _ =>
-                        Err(Error::new(
+                        Err(Unwind::Error(Error::new(
                             operator,
                             "Operands must be two numbers or two strings.".to_string(),
-                        )),
+                        ))),
                 }
             TT::Slash =>
                 match (left, right) {
@@ -297,26 +320,26 @@ impl Interpreter {
                         if *right != 0 as f64 {
                             Ok(Object::Number(Rc::new(*left / *right)))
                         } else {
-                            Err(Error::new(
+                            Err(Unwind::Error(Error::new(
                                 operator,
                                 "Division by zero.".to_string()
-                            ))
+                            )))
                         }
                     _ =>
-                        Err(Error::new(
+                        Err(Unwind::Error(Error::new(
                             operator,
                             "Operands must be numbers.".to_string()
-                        )),
+                        ))),
                 },
             TT::Star =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
                         Ok(Object::Number(Rc::new(*left * *right))),
                     _ =>
-                        Err(Error::new(
+                        Err(Unwind::Error(Error::new(
                             operator,
                             "Operands must be numbers.".to_string(),
-                        )),
+                        ))),
                 },
 
             // A panic here indicates an error in the parser.
@@ -327,7 +350,7 @@ impl Interpreter {
     fn evaluate_call(
         &mut self,
         callee: &Expr, paren: &Token, arguments: &[Expr],
-    ) -> Result<Object, Error> {
+    ) -> Result<Object, Unwind> {
         let callee = self.evaluate(callee)?;
 
         return if let Object::Callable(callable) = callee {
@@ -343,29 +366,35 @@ impl Interpreter {
             }
 
             if arguments.len() as u8 != callable.arity() {
-                return Err(Error::new(
+                return Err(Unwind::Error(Error::new(
                     paren,
                     format!(
                         "Expected {} arguments but got {}.",
                         callable.arity(),
                         arguments.len()
                     )
-                ));
+                )));
             }
 
-            callable.call(self, objects)
+            let result = callable.call(self, objects);
+
+            if let Err(Unwind::Return(_, object)) = result {
+                return Ok(object);
+            }
+
+            result
         } else {
-            Err(Error::new(
+            Err(Unwind::Error(Error::new(
                 paren,
                 "Can only call functions and classes.".to_string()
-            ))
+            )))
         }
     }
 
     fn evaluate_logical(
         &mut self,
         left: &Expr, operator: &Token, right: &Expr
-    ) -> Result<Object, Error> {
+    ) -> Result<Object, Unwind> {
         // Lox's logical operators are really ~~weird~~ fun. They are only
         // guaranteed to return a value with the truth value of the logical
         // expression. Combined short-circuiting evaluation, this makes them
@@ -393,7 +422,10 @@ impl Interpreter {
         self.evaluate(right)
     }
 
-    fn evaluate_unary(&mut self, operator: &Token, right: &Expr) -> Result<Object, Error> {
+    fn evaluate_unary(
+        &mut self,
+        operator: &Token, right: &Expr
+    ) -> Result<Object, Unwind> {
         let right: Object = self.evaluate(right)?;
 
         match operator.token_type {
@@ -403,10 +435,10 @@ impl Interpreter {
                 match right {
                     Object::Number(float) => Ok(Object::Number(Rc::new(-*float))),
                     _ =>
-                        Err(Error::new(
+                        Err(Unwind::Error(Error::new(
                             operator,
                             "Operand must be a number.".to_string()
-                        )),
+                        ))),
                 },
             
             // A panic here indicates an error in the parser. [1] 
@@ -414,16 +446,16 @@ impl Interpreter {
         }
     }
 
-    fn evaluate_variable(&self, identifier: &Token) -> Result<Object, Error> {
+    fn evaluate_variable(&self, identifier: &Token) -> Result<Object, Unwind> {
         let name = to_name(identifier);
 
         if let Some(object) = env::get(&self.local, name) {
             Ok(object)
         } else {
-            Err(Error::new(
+            Err(Unwind::Error(Error::new(
                 identifier,
                 format!("Undefined variable '{}'.", name)
-            ))
+            )))
         }
     }
 }

@@ -10,6 +10,7 @@ pub enum Stmt {
     Function(Rc<Token>, Rc<Vec<Token>>, Rc<Vec<Stmt>>),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     Print(Expr),
+    Return(Token, Expr),
     Var(Token, Option<Expr>),
     While(Expr, Box<Stmt>),
 }

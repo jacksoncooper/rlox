@@ -1,33 +1,10 @@
-fun add(one, another) {
-    print one + another;
+var global = 42;
+
+fun fib(n) {
+    if (n <= 1) return n;
+    return fib(n - 2) + fib(n - 1);
 }
 
-fun say_hi(first, last) {
-    print "Hi, " + first + " " + last + "!";
+for (var i = 0; i < 50; i = i + 1) {
+    print fib(i);
 }
-
-say_hi("Dear", "Reader");
-add("Dear", "Reader");
-
-print say_hi == add;
-print say_hi == say_hi;
-
-var breakfast = "oatmeal";
-
-// No need to derive Eq because the shell of a Lox object is copied every time
-// it is recalled.
-
-print breakfast == breakfast;
-
-{
-    var a;
-    print (a = -3.14);
-    print a;
-}
-
-fun dopple() { print "me!"; } fun dopple() { print "me too!"; }
-
-print dopple;
-dopple();
-
-print dopple == dopple;

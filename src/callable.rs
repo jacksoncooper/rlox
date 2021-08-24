@@ -44,7 +44,7 @@ impl Callable {
         &self,
         interpreter: &mut int::Interpreter,
         arguments: Vec<Object>
-    ) -> Result<Object, int::Error> {
+    ) -> Result<Object, int::Unwind> {
         match self {
             Callable::Clock => {
                 let now = SystemTime::now()
@@ -56,7 +56,7 @@ impl Callable {
                 ))
             },
             Callable::Function(_, parameters, body) => {
-                let mut local = env::new_with_enclosing(&interpreter.globals());
+                let mut local = env::new_with_enclosing(&interpreter.global());
 
                 for (parameter, argument) in parameters.iter().zip(&arguments) {
                     env::define(&mut local, int::to_name(parameter), argument);

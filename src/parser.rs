@@ -168,12 +168,12 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Stmt, Error> {
-        if self.advance_if(&[TT::If]).is_some() {
-            return self.if_statement();
-        }
-
         if self.advance_if(&[TT::For]).is_some() {
             return self.for_statement();
+        }
+
+        if self.advance_if(&[TT::If]).is_some() {
+            return self.if_statement();
         }
 
         if self.advance_if(&[TT::LeftBrace]).is_some() {
@@ -182,6 +182,10 @@ impl Parser {
 
         if self.advance_if(&[TT::Print]).is_some() {
             return self.print_statement();
+        }
+
+        if let Some(keyword) = self.advance_if(&[TT::Return]) {
+            return self.return_statement(keyword);
         }
 
         if self.advance_if(&[TT::While]).is_some() {
@@ -266,6 +270,17 @@ impl Parser {
         let value: Expr = self.expression()?;
         self.expect(TT::Semicolon, "Expect ';' after value.".to_string())?;
         Ok(Stmt::Print(value))
+    }
+
+    fn return_statement(&mut self, keyword: Token) -> Result<Stmt, Error> {
+        let value = if !self.check(&TT::Semicolon) {
+            self.expression()?
+        } else {
+            Expr::Literal(Object::Nil)
+        };
+    
+        self.expect(TT::Semicolon, "Expect ';' after return value.".to_string())?;
+        Ok(Stmt::Return(keyword, value))
     }
 
     fn while_statement(&mut self) -> Result<Stmt, Error> {

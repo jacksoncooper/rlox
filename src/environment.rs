@@ -4,12 +4,6 @@ use std::rc::Rc;
 
 use crate::object::Object;
 
-// [1]
-
-// This pattern is becoming a problem. The parser should be narrowing Token
-// types like it does for Lox objects so that partial functions don't litter
-// the interpreter.
-
 pub type Environment = Rc<RefCell<Bindings>>;
 
 #[derive(Debug)]
@@ -96,3 +90,9 @@ mod tests {
         Ok(())
     }
 }
+
+// [1]
+
+// This pattern is becoming a problem. The parser should be narrowing Token
+// types like it does for Lox objects so that partial functions don't litter
+// the interpreter.
