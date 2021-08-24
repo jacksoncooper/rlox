@@ -8,7 +8,7 @@ pub struct Scanner {
     start: usize,
     current: usize,
     line: usize,
-    had_error: bool,
+    stumbled: bool,
 }
 
 impl Scanner {
@@ -19,7 +19,7 @@ impl Scanner {
             start: 0,
             current: 0,
             line: 1,
-            had_error: false,
+            stumbled: false,
         }
     }
 
@@ -39,7 +39,7 @@ impl Scanner {
     }
 
     pub fn consume(self) -> Result<Vec<Token>, error::LoxError> {
-        if self.had_error {
+        if self.stumbled {
             Err(error::LoxError::Scan)
         } else {
             Ok(self.tokens)
@@ -73,9 +73,8 @@ impl Scanner {
             c if is_alpha(c) => self.identifier(),
 
             _  => {
-                // TODO: Report the column. Grapheme Clusters will complicate.
+                // These characters will be ignored and not passed to the parser.
                 error::syntax_error(self.line, "Unexpected character.");
-                self.had_error = true;
             }
         }
     }
@@ -140,7 +139,7 @@ impl Scanner {
 
         if self.is_at_end() {
             error::syntax_error(self.line, "Unterminated string.");
-            self.had_error = true;
+            self.stumbled = true;
             return;
         }
 
@@ -169,7 +168,7 @@ impl Scanner {
                     self.line,
                     "Number cannot be represented with 64 bits."
                 );
-                self.had_error = true;
+                self.stumbled = true;
             }
         }
     }

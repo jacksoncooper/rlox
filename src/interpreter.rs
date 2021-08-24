@@ -27,7 +27,6 @@ impl Error {
 }
 
 pub struct Interpreter {
-    global: env::Environment,
     local: env::Environment,
 }
 
@@ -37,13 +36,8 @@ impl Interpreter {
         env::define(&mut global, "clock", &Object::Callable(Callable::Clock));
 
         Interpreter {
-            global: env::copy(&global),
             local: env::copy(&global)
         }
-    }
-
-    pub fn global(&mut self) -> env::Environment {
-        env::copy(&self.global)
     }
 
     pub fn interpret(
@@ -126,9 +120,12 @@ impl Interpreter {
         &mut self, identifier: &Rc<Token>,
         parameters: &Rc<Vec<Token>>, body: &Rc<Vec<Stmt>>
     ) -> Result<(), Unwind> {
-        let function = Object::Callable(Callable::Function(
-            Rc::clone(identifier), Rc::clone(parameters), Rc::clone(body)
-        ));
+        let function = Object::Callable(Callable::Function {
+            name: Rc::clone(identifier),
+            parameters: Rc::clone(parameters),
+            body: Rc::clone(body),
+            closure: env::copy(&self.local),
+        });
 
         env::define(&mut self.local, to_name(identifier), &function);
 

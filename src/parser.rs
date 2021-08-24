@@ -116,26 +116,22 @@ impl Parser {
             parameters.push(self.parameter()?);
 
             while self.advance_if(&[TT::Comma]).is_some() {
-                if !too_many {
-                    parameters.push(self.parameter()?);
-                    if parameters.len() >= 255 {
-                        too_many = true;
-                    }
+                if !too_many && parameters.len() >= 255 {
+                    too_many = true;
+                    error::parse_error(
+                        self.peek(),
+                        "Can't have more than 255 parameters."
+                    );
+                    self.stumbled = true;
                 }
+                parameters.push(self.parameter()?);
             }
         }
 
-        let paren = self.expect(
+        self.expect(
             TT::RightParen,
             "Expect ')' after parameters.".to_string(),
         )?;
-
-        if too_many {
-            self.stumble(
-                &paren,
-                "Can't have more than 255 arguments."
-            );
-        }
 
         Ok(parameters)
     }
@@ -311,7 +307,8 @@ impl Parser {
                 Expr::Variable(name) =>
                     Ok(Expr::Assignment(name, Box::new(value))), // [1]
                 _ => {
-                    self.stumble(&equals, "Invalid assignment target.");
+                    error::parse_error(&equals, "Invalid assignment target.");
+                    self.stumbled = true;
                     Ok(value)
                 }
             };
@@ -386,12 +383,15 @@ impl Parser {
             arguments.push(self.expression()?);
 
             while self.advance_if(&[TT::Comma]).is_some() {
-                if !too_many {
-                    arguments.push(self.expression()?);
-                    if arguments.len() >= 255 {
-                        too_many = true;
-                    }
+                if !too_many && arguments.len() >= 255 {
+                    too_many = true;
+                    error::parse_error(
+                        self.peek(),
+                        "Can't have more than 255 arguments."
+                    );
+                    self.stumbled = true;
                 }
+                arguments.push(self.expression()?);
             }
         }
 
@@ -406,13 +406,6 @@ impl Parser {
             arguments
         );
 
-        if too_many {
-            self.stumble(
-                &paren,
-                "Can't have more than 255 arguments.",
-            );
-        }
-        
         Ok(callable)
     }
 
@@ -529,11 +522,6 @@ impl Parser {
             Token::clone(next),
             message
         ))
-    }
-
-    fn stumble(&mut self, token: &Token, message: &str) {
-        error::parse_error(token, message);
-        self.stumbled = true;
     }
 
     fn synchronize(&mut self) {

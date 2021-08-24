@@ -11,14 +11,20 @@ use crate::token::Token;
 #[derive(Clone, Debug)]
 pub enum Callable {
     Clock,
-    Function(Rc<Token>, Rc<Vec<Token>>, Rc<Vec<Stmt>>),
+    Function {
+        name: Rc<Token>,
+        parameters: Rc<Vec<Token>>,
+        body: Rc<Vec<Stmt>>,
+        closure: env::Environment,
+    }
 }
 
 impl PartialEq for Callable {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Callable::Clock, Callable::Clock) => true,
-            (Callable::Function(name, ..), Callable::Function(other_name, ..)) =>
+            (Callable::Function { name, .. },
+             Callable::Function { name: other_name, .. }) =>
                 name == other_name, // [1]
             _ => false,
         }
@@ -29,7 +35,7 @@ impl Callable {
     pub fn arity(&self) -> u8 {
         match self {
             Callable::Clock => 0,
-            Callable::Function(_, parameters, _) => {
+            Callable::Function { parameters, .. } => {
                 if parameters.len() <= 255 {
                     return parameters.len() as u8
                 }
@@ -55,8 +61,8 @@ impl Callable {
                     |t| Object::Number(Rc::new(t.as_secs_f64()))
                 ))
             },
-            Callable::Function(_, parameters, body) => {
-                let mut local = env::new_with_enclosing(&interpreter.global());
+            Callable::Function { parameters, body, closure, .. } => {
+                let mut local = env::new_with_enclosing(closure);
 
                 for (parameter, argument) in parameters.iter().zip(&arguments) {
                     env::define(&mut local, int::to_name(parameter), argument);
@@ -73,9 +79,9 @@ impl Callable {
 impl fmt::Display for Callable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Callable::Clock => write!(f, "<native function clock>"),
-            Callable::Function(identifier, _, _) =>
-                write!(f, "<function {}>", int::to_name(identifier))
+            Callable::Clock => write!(f, "<native fn>"),
+            Callable::Function { name, .. } =>
+                write!(f, "<fn {}>", int::to_name(name))
         }
     }
 }

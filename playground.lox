@@ -1,10 +1,19 @@
-var global = 42;
+fun make_counter() {
+    var on = 0;
 
-fun fib(n) {
-    if (n <= 1) return n;
-    return fib(n - 2) + fib(n - 1);
+    fun count() {
+        on = on + 1;
+        print on;
+    }
+
+    return count;
 }
 
-for (var i = 0; i < 50; i = i + 1) {
-    print fib(i);
-}
+var my_counter = make_counter();
+
+my_counter();
+my_counter();
+my_counter();
+my_counter();
+my_counter();
+my_counter();
