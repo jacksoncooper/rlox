@@ -3,9 +3,9 @@ use std::rc::Rc;
 use crate::callable::Callable;
 use crate::environment as env;
 use crate::error;
-use crate::expression::Expr;
+use crate::expression::{self as expr, Expr};
 use crate::object::Object;
-use crate::statement::Stmt;
+use crate::statement::{self as stmt, Stmt};
 use crate::token::Token;
 use crate::token_type::TokenType as TT;
 
@@ -40,12 +40,9 @@ impl Interpreter {
         }
     }
 
-    pub fn interpret(
-        &mut self,
-        statements: Vec<Stmt>
-    ) -> Result<(), error::LoxError> {
+    pub fn interpret(&mut self, statements: Vec<Stmt>) -> Result<(), error::LoxError> {
         for statement in &statements {
-            if let Err(error) = self.execute(statement) {
+            if let Err(error) = statement.accept(self) {
                 match error {
                     Unwind::Error(error) =>
                         error::runtime_error(&error.token, &error.message),
@@ -63,41 +60,13 @@ impl Interpreter {
         Ok(())
     }
 
-    fn execute(&mut self, stmt: &Stmt) -> Result<(), Unwind> {
-        match stmt {
-            Stmt::Block(statements) =>
-                self.execute_block(
-                    statements,
-                    env::new_with_enclosing(&self.local)
-                ),
-            Stmt::Expression(expression) =>
-                self.execute_expression(expression),
-            Stmt::Function(identifier, parameters, body) =>
-                self.execute_function_definition(identifier, parameters, body),
-            Stmt::If(condition, then_branch, else_branch) =>
-                self.execute_if(condition, then_branch, else_branch),
-            Stmt::Print(value) =>
-                self.execute_print(value),
-            Stmt::Return(keyword, value) =>
-                self.execute_return(keyword, value),
-            Stmt::Var(identifier, initializer) =>
-                self.execute_variable_declaration(identifier, initializer),
-            Stmt::While(condition, body) =>
-                self.execute_while(condition, body),
-        }
-    }
-
-    pub fn execute_block(
-        &mut self,
-        statements: &[Stmt],
-        new_local: env::Environment
-    ) -> Result<(), Unwind> {
+    pub fn execute_block(&mut self, statements: &[Stmt], new_local: env::Environment) -> Result<(), Unwind> {
         let old_local = env::copy(&self.local);
 
         self.local = new_local;
 
         for statement in statements {
-            let result = self.execute(statement);
+            let result = statement.accept(self);
 
             // If the statement is in error, restore the previous environment
             // before bubbling the runtime error. There's no reason to do this
@@ -110,135 +79,27 @@ impl Interpreter {
 
         Ok(())
     }
+}
 
-    fn execute_expression(&mut self, expr: &Expr) -> Result<(), Unwind>{
-        self.evaluate(expr)?;
-        Ok(())
-    }
+impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
+    fn visit_assignment(&mut self, token: &Token, object: &Box<Expr>) -> Result<Object, Unwind> {
+        let name = to_name(token);
+        let object: Object = object.accept(self)?;
 
-    fn execute_function_definition(
-        &mut self, identifier: &Rc<Token>,
-        parameters: &Rc<Vec<Token>>, body: &Rc<Vec<Stmt>>
-    ) -> Result<(), Unwind> {
-        let function = Object::Callable(Callable::Function {
-            name: Rc::clone(identifier),
-            parameters: Rc::clone(parameters),
-            body: Rc::clone(body),
-            closure: env::copy(&self.local),
-        });
-
-        env::define(&mut self.local, to_name(identifier), &function);
-
-        Ok(())
-    }
-
-    fn execute_if(
-        &mut self, condition: &Expr,
-        then_branch: &Stmt, else_branch: &Option<Box<Stmt>>
-    ) -> Result<(), Unwind> {
-        let go_then = is_truthy(&self.evaluate(condition)?);
-        
-        if go_then {
-            self.execute(then_branch)?;
-        } else if let Some(statement) = else_branch {
-            self.execute(statement)?;
-        }
-
-        Ok(())
-    }
-
-    fn execute_print(&mut self, expr: &Expr) -> Result<(), Unwind> {
-        let value: Object = self.evaluate(expr)?;
-        println!("{}", value);
-        Ok(())
-    }
-
-    fn execute_return(
-        &mut self,
-        keyword: &Token, value: &Expr
-    ) -> Result<(), Unwind> {
-        Err(Unwind::Return(
-            Token::clone(keyword),
-            self.evaluate(value)?
-        ))
-    }
-
-    fn execute_variable_declaration(
-        &mut self,
-        identifier: &Token, initializer: &Option<Expr>
-    ) -> Result<(), Unwind> {
-        let name = to_name(identifier);
-
-        let value: Object = match initializer {
-            Some(initializer) => {
-                let value: Object = self.evaluate(initializer)?;
-                value
-            },
-            None => Object::Nil,
-        };
-
-        env::define(&mut self.local, name, &value);
-
-        Ok(())
-    }
-
-    fn execute_while(
-        &mut self,
-        condition: &Expr, body: &Stmt
-    ) -> Result<(), Unwind> {
-        while is_truthy(&self.evaluate(condition)?) {
-            self.execute(body)?;
-        }
-
-        Ok(())
-    }
-
-    fn evaluate(&mut self, expr: &Expr) -> Result<Object, Unwind> {
-        match expr {
-            Expr::Assignment(identifier, value) =>
-                self.evaluate_assignment(identifier, value),
-            Expr::Binary(left, operator, right) =>
-                self.evaluate_binary(left, operator, right),
-            Expr::Call(callee, paren, arguments) =>
-                self.evaluate_call(callee, paren, arguments),
-            Expr::Grouping(grouping) =>
-                self.evaluate(grouping),
-            Expr::Literal(value) =>
-                Ok(Object::clone(value)),
-            Expr::Logical(left, operator, right) =>
-                self.evaluate_logical(left, operator, right),
-            Expr::Unary(operator, right) =>
-                self.evaluate_unary(operator, right),
-            Expr::Variable(identifier) =>
-                // This one has a side effect, so we need to pass it &mut self.
-                self.evaluate_variable(identifier),
-        }
-    }
-
-    fn evaluate_assignment(
-        &mut self,
-        identifier: &Token, value: &Expr
-    ) -> Result<Object, Unwind> {
-        let name = to_name(identifier);
-        let value: Object = self.evaluate(value)?;
-
-        if env::assign(&mut self.local, name, &value) {
-            Ok(value)
+        if env::assign(&mut self.local, name, &object) {
+            Ok(object)
         } else {
             Err(Unwind::Error(Error::new(
-                identifier,
+                token,
                 format!("Undefined variable '{}'.", name)
             )))
         }
     }
 
     #[allow(clippy::float_cmp)]
-    fn evaluate_binary(
-        &mut self,
-        left: &Expr, operator: &Token, right: &Expr
-    ) -> Result<Object, Unwind> {
-        let left  = self.evaluate(left)?;
-        let right = self.evaluate(right)?;
+    fn visit_binary(&mut self, left: &Box<Expr>, operator: &Token, right: &Box<Expr>) -> Result<Object, Unwind> {
+        let left  = left.accept(self)?;
+        let right = right.accept(self)?;
 
         match operator.token_type {
             TT::BangEqual =>
@@ -344,17 +205,14 @@ impl Interpreter {
         }
     }
 
-    fn evaluate_call(
-        &mut self,
-        callee: &Expr, paren: &Token, arguments: &[Expr],
-    ) -> Result<Object, Unwind> {
-        let callee = self.evaluate(callee)?;
+    fn visit_call(&mut self, callee: &Box<Expr>, paren: &Token, arguments: &[Expr]) -> Result<Object, Unwind> {
+        let callee = callee.accept(self)?;
 
         return if let Object::Callable(callable) = callee {
             let mut objects = Vec::new();
 
             for argument in arguments {
-                objects.push(self.evaluate(argument)?);
+                objects.push(argument.accept(self)?);
             }
 
             if arguments.len() > 255 {
@@ -388,10 +246,15 @@ impl Interpreter {
         }
     }
 
-    fn evaluate_logical(
-        &mut self,
-        left: &Expr, operator: &Token, right: &Expr
-    ) -> Result<Object, Unwind> {
+    fn visit_grouping(&mut self, expression: &Box<Expr>) -> Result<Object, Unwind> {
+        expression.accept(self)
+    }
+
+    fn visit_literal(&mut self, object: &Object) -> Result<Object, Unwind> {
+        Ok(Object::clone(object))
+    }
+
+    fn visit_logical(&mut self, left: &Box<Expr>, operator: &Token, right: &Box<Expr>) -> Result<Object, Unwind> {
         // Lox's logical operators are really ~~weird~~ fun. They are only
         // guaranteed to return a value with the truth value of the logical
         // expression. Combined short-circuiting evaluation, this makes them
@@ -402,7 +265,7 @@ impl Interpreter {
         // T and _ -> right operand
         // F and _ -> left operand
 
-        let left = self.evaluate(left)?;
+        let left = left.accept(self)?;
 
         match operator.token_type {
             TT::Or => {
@@ -416,14 +279,11 @@ impl Interpreter {
             _ => panic!("token is not a logical operator")
         }
 
-        self.evaluate(right)
+        right.accept(self)
     }
 
-    fn evaluate_unary(
-        &mut self,
-        operator: &Token, right: &Expr
-    ) -> Result<Object, Unwind> {
-        let right: Object = self.evaluate(right)?;
+    fn visit_unary(&mut self, operator: &Token, right: &Box<Expr>) -> Result<Object, Unwind> {
+        let right: Object = right.accept(self)?;
 
         match operator.token_type {
             TT::Bang =>
@@ -443,17 +303,90 @@ impl Interpreter {
         }
     }
 
-    fn evaluate_variable(&self, identifier: &Token) -> Result<Object, Unwind> {
-        let name = to_name(identifier);
+    fn visit_variable(&mut self, token: &Token) -> Result<Object, Unwind> {
+        let name = to_name(token);
 
         if let Some(object) = env::get(&self.local, name) {
             Ok(object)
         } else {
             Err(Unwind::Error(Error::new(
-                identifier,
+                token,
                 format!("Undefined variable '{}'.", name)
             )))
         }
+    }
+}
+
+impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
+    fn visit_block(&mut self, statements: &[Stmt]) -> Result<(), Unwind> {
+        self.execute_block(
+            statements,
+            env::new_with_enclosing(&self.local)
+        )
+    }
+
+    fn visit_expression(&mut self, expression: &Expr) -> Result<(), Unwind>{
+        expression.accept(self)?;
+        Ok(())
+    }
+
+    fn visit_function(&mut self, name: &Rc<Token>, parameters: &Rc<Vec<Token>>, body: &Rc<Vec<Stmt>>) -> Result<(), Unwind> {
+        let function = Object::Callable(Callable::Function {
+            name: Rc::clone(name),
+            parameters: Rc::clone(parameters),
+            body: Rc::clone(body),
+            closure: env::copy(&self.local),
+        });
+
+        env::define(&mut self.local, to_name(name), &function);
+
+        Ok(())
+    }
+
+    fn visit_if(&mut self, condition: &Expr, then_branch: &Box<Stmt>, else_branch: &Option<Box<Stmt>>) -> Result<(), Unwind> {
+        let go_then = is_truthy(&condition.accept(self)?);
+        
+        if go_then {
+            then_branch.accept(self)?;
+        } else if let Some(statement) = else_branch {
+            statement.accept(self)?;
+        }
+
+        Ok(())
+    }
+
+    fn visit_print(&mut self, object: &Expr) -> Result<(), Unwind> {
+        let object: Object = object.accept(self)?;
+        println!("{}", object);
+        Ok(())
+    }
+
+    fn visit_return(&mut self, keyword: &Token, object: &Expr) -> Result<(), Unwind> {
+        Err(Unwind::Return(
+            Token::clone(keyword),
+            object.accept(self)?
+        ))
+    }
+
+    fn visit_var(&mut self, name: &Token, object: &Option<Expr>) -> Result<(), Unwind> {
+        let name = to_name(name);
+
+        let object: Object = match object {
+            Some(initializer) => initializer.accept(self)?,
+            None => Object::Nil,
+        };
+
+        env::define(&mut self.local, name, &object);
+
+        Ok(())
+    }
+
+    fn visit_while(&mut self, condition: &Expr, body: &Box<Stmt>) -> Result<(), Unwind> {
+        while is_truthy(&condition.accept(self)?) {
+            body.accept(self)?;
+        }
+
+        Ok(())
     }
 }
 

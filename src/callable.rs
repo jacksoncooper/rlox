@@ -40,7 +40,7 @@ impl Callable {
                     return parameters.len() as u8
                 }
 
-                // A panic here indicates a failure in the interpreter.
+                // A panic here indicates a failure in the parser.
                 panic!("more than 255 parameters");
             }
         }
