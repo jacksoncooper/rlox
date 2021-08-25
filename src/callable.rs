@@ -65,7 +65,7 @@ impl Callable {
                 let mut local = env::new_with_enclosing(closure);
 
                 for (parameter, argument) in parameters.iter().zip(&arguments) {
-                    env::define(&mut local, int::to_name(parameter), argument);
+                    env::define(&mut local, parameter.to_name(), argument);
                 }
 
                 interpreter.execute_block(body, env::copy(&local))?;
@@ -81,7 +81,7 @@ impl fmt::Display for Callable {
         match self {
             Callable::Clock => write!(f, "<native fn>"),
             Callable::Function { name, .. } =>
-                write!(f, "<fn {}>", int::to_name(name))
+                write!(f, "<fn {}>", name.to_name())
         }
     }
 }

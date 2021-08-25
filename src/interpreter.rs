@@ -1,3 +1,6 @@
+// TODO: Restore the evaluate() and execute() methods in the interpreter that
+// turn around and pass the interpreter visitor to their arguments.
+
 use std::rc::Rc;
 
 use crate::callable::Callable;
@@ -83,7 +86,7 @@ impl Interpreter {
 
 impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
     fn visit_assignment(&mut self, token: &Token, object: &Box<Expr>) -> Result<Object, Unwind> {
-        let name = to_name(token);
+        let name = token.to_name();
         let object: Object = object.accept(self)?;
 
         if env::assign(&mut self.local, name, &object) {
@@ -304,7 +307,7 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
     }
 
     fn visit_variable(&mut self, token: &Token) -> Result<Object, Unwind> {
-        let name = to_name(token);
+        let name = token.to_name();
 
         if let Some(object) = env::get(&self.local, name) {
             Ok(object)
@@ -338,7 +341,7 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
             closure: env::copy(&self.local),
         });
 
-        env::define(&mut self.local, to_name(name), &function);
+        env::define(&mut self.local, name.to_name(), &function);
 
         Ok(())
     }
@@ -369,7 +372,7 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
     }
 
     fn visit_var(&mut self, name: &Token, object: &Option<Expr>) -> Result<(), Unwind> {
-        let name = to_name(name);
+        let name = name.to_name();
 
         let object: Object = match object {
             Some(initializer) => initializer.accept(self)?,
@@ -399,15 +402,6 @@ fn is_truthy(operand: &Object) -> bool {
         Object::Nil            => false,
         Object::Boolean(false) => false,
         _                      => true,
-    }
-}
-
-pub fn to_name(token: &Token) -> &str {
-    match token.token_type {
-        TT::Identifier(ref name) => name,
-
-        // A panic here represents a failure in the parser.
-        _ => panic!("token is not an identifier")
     }
 }
 

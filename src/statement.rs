@@ -18,10 +18,8 @@ pub enum Stmt {
 pub trait Visitor<T> {
     fn visit_block(&mut self, statements: &[Stmt]) -> T;
     fn visit_expression(&mut self, expression: &Expr) -> T;
-    fn visit_function(&mut self, name: &Rc<Token>, parameters: &Rc<Vec<Token>>,
-        body: &Rc<Vec<Stmt>>) -> T;
-    fn visit_if(&mut self, condition: &Expr, then_branch: &Box<Stmt>,
-        else_branch: &Option<Box<Stmt>>) -> T;
+    fn visit_function(&mut self, name: &Rc<Token>, parameters: &Rc<Vec<Token>>, body: &Rc<Vec<Stmt>>) -> T;
+    fn visit_if(&mut self, condition: &Expr, then_branch: &Box<Stmt>, else_branch: &Option<Box<Stmt>>) -> T;
     fn visit_print(&mut self, object: &Expr) -> T;
     fn visit_return(&mut self, keyword: &Token, object: &Expr) -> T;
     fn visit_var(&mut self, name: &Token, object: &Option<Expr>) -> T;
