@@ -261,7 +261,7 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
             }
 
             if arguments.len() > 255 {
-                // A panic here indicates a failure in the parser.
+                // A panic here indicates a error in the parser.
                 panic!("more than 255 arguments");
             }
 

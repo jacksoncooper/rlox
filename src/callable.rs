@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::fmt;
 use std::rc::Rc;
 use std::time::SystemTime;
@@ -34,12 +35,17 @@ impl Callable {
         match self {
             Callable::Clock => 0,
             Callable::Function(_, parameters, ..) => {
-                if parameters.len() <= 255 {
-                    return parameters.len() as u8
-                }
+                // TODO: This parameter check doesn't need to happen every time
+                // a function is called. It can be done in the interpreter
+                // when visiting a function definition. The problem is that a
+                // callable is a parasite hooked into the syntax tree and
+                // shares its representation of function parameters. I'd have
+                // to allocate them somewhere else.
 
-                // A panic here indicates a failure in the parser.
-                panic!("more than 255 parameters");
+                u8::try_from(parameters.len()).unwrap_or_else(
+                    // A panic here indicates a error in the parser.
+                    |_| panic!("more than 255 parameters")
+                )
             }
         }
     }
