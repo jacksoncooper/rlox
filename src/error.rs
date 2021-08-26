@@ -2,14 +2,14 @@ use crate::token::Token;
 use crate::token_type::TokenType as TT;
 
 pub enum LoxError {
-    Scan, Parse, Interpret,
+    Scan, Parse, Resolve, Interpret,
 }
 
 pub fn report(line: usize, location: &str, message: &str) {
     eprintln!("[line {}] Error{}: {}", line, location, message);
 }
 
-pub fn syntax_error(line: usize, message: &str) {
+pub fn scanner_error(line: usize, message: &str) {
     report(line, "", message);
 }
 

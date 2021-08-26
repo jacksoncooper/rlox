@@ -8,25 +8,23 @@ use crate::object::Object;
 use crate::statement::Stmt;
 use crate::token::Token;
 
-#[derive(Clone, Debug)]
+// TODO: Deriving PartialEq to compare functions is hilariously slow. Among the
+// other members, Rust compares their closures, recursively walking each
+// environment and comparing their bindings. Learn how to compare memory
+// addresses.
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum Callable {
     Clock,
-    Function {
-        name: Rc<Token>,
-        parameters: Rc<Vec<Token>>,
-        body: Rc<Vec<Stmt>>,
-        closure: env::Environment,
-    }
+    Function(Rc<Token>, Rc<Vec<Token>>, Rc<Vec<Stmt>>, env::Environment)
 }
 
-impl PartialEq for Callable {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Callable::Clock, Callable::Clock) => true,
-            (Callable::Function { name, .. },
-             Callable::Function { name: other_name, .. }) =>
-                name == other_name, // [1]
-            _ => false,
+impl fmt::Display for Callable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Callable::Clock => write!(f, "<native fn>"),
+            Callable::Function(name, ..) =>
+                write!(f, "<fn {}>", name.to_name().1)
         }
     }
 }
@@ -35,7 +33,7 @@ impl Callable {
     pub fn arity(&self) -> u8 {
         match self {
             Callable::Clock => 0,
-            Callable::Function { parameters, .. } => {
+            Callable::Function(_, parameters, ..) => {
                 if parameters.len() <= 255 {
                     return parameters.len() as u8
                 }
@@ -61,11 +59,11 @@ impl Callable {
                     |t| Object::Number(Rc::new(t.as_secs_f64()))
                 ))
             },
-            Callable::Function { parameters, body, closure, .. } => {
+            Callable::Function(_, parameters, body, closure) => {
                 let mut local = env::new_with_enclosing(closure);
 
                 for (parameter, argument) in parameters.iter().zip(&arguments) {
-                    env::define(&mut local, parameter.to_name(), argument);
+                    env::define(&mut local, parameter.to_name().1, argument);
                 }
 
                 interpreter.execute_block(body, env::copy(&local))?;
@@ -75,19 +73,3 @@ impl Callable {
         }
     }
 }
-
-impl fmt::Display for Callable {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Callable::Clock => write!(f, "<native fn>"),
-            Callable::Function { name, .. } =>
-                write!(f, "<fn {}>", name.to_name())
-        }
-    }
-}
-
-// [1]
-
- // Compare the identifier Token for equality. This contains the line on which
- // the function is defined. If two functions with the same name are defined on
- // the same line, the second definition will replace the first.

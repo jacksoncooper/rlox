@@ -105,7 +105,11 @@ impl Parser {
 
         let body = self.block()?;
 
-        Ok(Stmt::Function(Rc::new(name), Rc::new(parameters), Rc::new(body)))
+        Ok(Stmt::Function(
+           Rc::new(name),
+           Rc::new(parameters),
+           Rc::new(body),
+        ))
     }
 
     fn parameters(&mut self) -> Result<Vec<Token>, Error> {
@@ -412,7 +416,7 @@ impl Parser {
     fn primary(&mut self) -> Result<Expr, Error> {
         let next = self.peek();
 
-        if let TT::Identifier(_) = next.token_type {
+        if let TT::Identifier(..) = next.token_type {
             return Ok(Expr::Variable(self.advance()));
         }
 
@@ -514,7 +518,7 @@ impl Parser {
     fn expect_identifier(&mut self, message: String) -> Result<Token, Error> {
         let next = self.peek();
 
-        if let TT::Identifier(_) = next.token_type {
+        if let TT::Identifier(..) = next.token_type {
             return Ok(self.advance());
         }
 

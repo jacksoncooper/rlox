@@ -1,7 +1,5 @@
-// TODO: Restore the evaluate() and execute() methods in the interpreter that
-// turn around and pass the interpreter visitor to their arguments.
-
 use std::rc::Rc;
+use std::collections::HashMap;
 
 use crate::callable::Callable;
 use crate::environment as env;
@@ -30,31 +28,35 @@ impl Error {
 }
 
 pub struct Interpreter {
+    global: env::Environment,
     local: env::Environment,
+    resolutions: HashMap<usize, usize>,
 }
 
 impl Interpreter {
-    pub fn new() -> Interpreter {
+    pub fn new(resolutions: HashMap<usize, usize>) -> Interpreter {
         let mut global = env::new();
+
         env::define(&mut global, "clock", &Object::Callable(Callable::Clock));
 
         Interpreter {
-            local: env::copy(&global)
+            global: env::copy(&global),
+            local: env::copy(&global),
+            resolutions,
         }
     }
 
     pub fn interpret(&mut self, statements: Vec<Stmt>) -> Result<(), error::LoxError> {
         for statement in &statements {
-            if let Err(error) = statement.accept(self) {
+            if let Err(error) = self.execute(statement) {
                 match error {
                     Unwind::Error(error) =>
                         error::runtime_error(&error.token, &error.message),
-                    Unwind::Return(keyword, _) =>
-                        error::runtime_error(
-                            &keyword,
-                            "Cannot return from top-level code."
-                        ),
+                    Unwind::Return(..) =>
+                        // A panic here indicates an error in the resolver or interpreter.
+                        panic!("uncaught return")
                 }
+
                 // A runtime error kills the interpreter.
                 return Err(error::LoxError::Interpret);
             }
@@ -63,13 +65,24 @@ impl Interpreter {
         Ok(())
     }
 
-    pub fn execute_block(&mut self, statements: &[Stmt], new_local: env::Environment) -> Result<(), Unwind> {
+    pub fn evaluate(&mut self, expression: &Expr) -> Result<Object, Unwind> {
+        expression.accept(self)
+    }
+
+    pub fn execute(&mut self, statement: &Stmt) -> Result<(), Unwind> {
+        statement.accept(self)
+    }
+
+    pub fn execute_block(
+        &mut self,
+        statements: &[Stmt], new_local: env::Environment
+    ) -> Result<(), Unwind> {
         let old_local = env::copy(&self.local);
 
         self.local = new_local;
 
         for statement in statements {
-            let result = statement.accept(self);
+            let result = self.execute(statement);
 
             // If the statement is in error, restore the previous environment
             // before bubbling the runtime error. There's no reason to do this
@@ -82,27 +95,53 @@ impl Interpreter {
 
         Ok(())
     }
+
+    fn look_up_variable(&self, token: &Token) -> Result<Object, Unwind> {
+        let (identifier, name) = token.to_name();
+
+        match self.resolutions.get(identifier) {
+            Some(distance) => Ok(env::get_at(&self.local, *distance, name)),
+            None => env::get(&self.global, name).map_or_else(
+                || Err(Unwind::Error(Error::new(
+                    token, format!("Undefined variable '{}'.", name)
+                ))),
+                Ok
+            ),
+        }
+    }
 }
 
 impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
-    fn visit_assignment(&mut self, token: &Token, object: &Box<Expr>) -> Result<Object, Unwind> {
-        let name = token.to_name();
-        let object: Object = object.accept(self)?;
+    fn visit_assignment(
+        &mut self,
+        token: &Token, object: &Expr
+    ) -> Result<Object, Unwind> {
+        let (identifier, name) = token.to_name();
+        let object: Object = self.evaluate(object)?;
 
-        if env::assign(&mut self.local, name, &object) {
-            Ok(object)
-        } else {
-            Err(Unwind::Error(Error::new(
-                token,
-                format!("Undefined variable '{}'.", name)
-            )))
+        match self.resolutions.get(identifier) {
+            Some(distance) => {
+                env::assign_at(&self.local, *distance, name, &object);
+                Ok(object)
+            },
+            None =>
+                if env::assign(&mut self.global, name, &object) {
+                    Ok(object)
+                } else {
+                    Err(Unwind::Error(Error::new(
+                        token, format!("Undefined variable '{}'.", name)
+                    )))
+                }
         }
     }
 
     #[allow(clippy::float_cmp)]
-    fn visit_binary(&mut self, left: &Box<Expr>, operator: &Token, right: &Box<Expr>) -> Result<Object, Unwind> {
-        let left  = left.accept(self)?;
-        let right = right.accept(self)?;
+    fn visit_binary(
+            &mut self,
+            left: &Expr, operator: &Token, right: &Expr
+    ) -> Result<Object, Unwind> {
+        let left  = self.evaluate(left)?;
+        let right = self.evaluate(right)?;
 
         match operator.token_type {
             TT::BangEqual =>
@@ -208,14 +247,17 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
         }
     }
 
-    fn visit_call(&mut self, callee: &Box<Expr>, paren: &Token, arguments: &[Expr]) -> Result<Object, Unwind> {
-        let callee = callee.accept(self)?;
+    fn visit_call(
+        &mut self,
+        callee: &Expr, paren: &Token, arguments: &[Expr]
+    ) -> Result<Object, Unwind> {
+        let callee = self.evaluate(callee)?;
 
         return if let Object::Callable(callable) = callee {
             let mut objects = Vec::new();
 
             for argument in arguments {
-                objects.push(argument.accept(self)?);
+                objects.push(self.evaluate(argument)?);
             }
 
             if arguments.len() > 255 {
@@ -249,15 +291,18 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
         }
     }
 
-    fn visit_grouping(&mut self, expression: &Box<Expr>) -> Result<Object, Unwind> {
-        expression.accept(self)
+    fn visit_grouping(&mut self, expression: &Expr) -> Result<Object, Unwind> {
+        self.evaluate(expression)
     }
 
     fn visit_literal(&mut self, object: &Object) -> Result<Object, Unwind> {
         Ok(Object::clone(object))
     }
 
-    fn visit_logical(&mut self, left: &Box<Expr>, operator: &Token, right: &Box<Expr>) -> Result<Object, Unwind> {
+    fn visit_logical(
+        &mut self,
+        left: &Expr, operator: &Token, right: &Expr
+    ) -> Result<Object, Unwind> {
         // Lox's logical operators are really ~~weird~~ fun. They are only
         // guaranteed to return a value with the truth value of the logical
         // expression. Combined short-circuiting evaluation, this makes them
@@ -268,7 +313,7 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
         // T and _ -> right operand
         // F and _ -> left operand
 
-        let left = left.accept(self)?;
+        let left = self.evaluate(left)?;
 
         match operator.token_type {
             TT::Or => {
@@ -282,11 +327,11 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
             _ => panic!("token is not a logical operator")
         }
 
-        right.accept(self)
+        self.evaluate(right)
     }
 
-    fn visit_unary(&mut self, operator: &Token, right: &Box<Expr>) -> Result<Object, Unwind> {
-        let right: Object = right.accept(self)?;
+    fn visit_unary(&mut self, operator: &Token, right: &Expr) -> Result<Object, Unwind> {
+        let right: Object = self.evaluate(right)?;
 
         match operator.token_type {
             TT::Bang =>
@@ -306,17 +351,8 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
         }
     }
 
-    fn visit_variable(&mut self, token: &Token) -> Result<Object, Unwind> {
-        let name = token.to_name();
-
-        if let Some(object) = env::get(&self.local, name) {
-            Ok(object)
-        } else {
-            Err(Unwind::Error(Error::new(
-                token,
-                format!("Undefined variable '{}'.", name)
-            )))
-        }
+    fn visit_variable(&mut self, name: &Token) -> Result<Object, Unwind> {
+        self.look_up_variable(name)
     }
 }
 
@@ -328,38 +364,44 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
         )
     }
 
-    fn visit_expression(&mut self, expression: &Expr) -> Result<(), Unwind>{
-        expression.accept(self)?;
+    fn visit_expression(&mut self, expression: &Expr) -> Result<(), Unwind> {
+        self.evaluate(expression)?;
         Ok(())
     }
 
-    fn visit_function(&mut self, name: &Rc<Token>, parameters: &Rc<Vec<Token>>, body: &Rc<Vec<Stmt>>) -> Result<(), Unwind> {
-        let function = Object::Callable(Callable::Function {
-            name: Rc::clone(name),
-            parameters: Rc::clone(parameters),
-            body: Rc::clone(body),
-            closure: env::copy(&self.local),
-        });
+    fn visit_function(
+        &mut self,
+        name: &Rc<Token>, parameters: &Rc<Vec<Token>>, body: &Rc<Vec<Stmt>>
+    ) -> Result<(), Unwind> {
+        let object = Object::Callable(Callable::Function(
+            Rc::clone(name),
+            Rc::clone(parameters),
+            Rc::clone(body),
+            env::copy(&self.local)
+        ));
 
-        env::define(&mut self.local, name.to_name(), &function);
+        env::define(&mut self.local, name.to_name().1, &object);
 
         Ok(())
     }
 
-    fn visit_if(&mut self, condition: &Expr, then_branch: &Box<Stmt>, else_branch: &Option<Box<Stmt>>) -> Result<(), Unwind> {
-        let go_then = is_truthy(&condition.accept(self)?);
+    fn visit_if(
+        &mut self,
+        condition: &Expr, then_branch: &Stmt, else_branch: &Option<Box<Stmt>>
+    ) -> Result<(), Unwind> {
+        let go_then = is_truthy(&self.evaluate(condition)?);
         
         if go_then {
-            then_branch.accept(self)?;
+            self.execute(then_branch)?;
         } else if let Some(statement) = else_branch {
-            statement.accept(self)?;
+            self.execute(statement)?;
         }
 
         Ok(())
     }
 
     fn visit_print(&mut self, object: &Expr) -> Result<(), Unwind> {
-        let object: Object = object.accept(self)?;
+        let object: Object = self.evaluate(object)?;
         println!("{}", object);
         Ok(())
     }
@@ -367,15 +409,15 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
     fn visit_return(&mut self, keyword: &Token, object: &Expr) -> Result<(), Unwind> {
         Err(Unwind::Return(
             Token::clone(keyword),
-            object.accept(self)?
+            self.evaluate(object)?
         ))
     }
 
     fn visit_var(&mut self, name: &Token, object: &Option<Expr>) -> Result<(), Unwind> {
-        let name = name.to_name();
+        let name = name.to_name().1;
 
         let object: Object = match object {
-            Some(initializer) => initializer.accept(self)?,
+            Some(initializer) => self.evaluate(initializer)?,
             None => Object::Nil,
         };
 
@@ -384,9 +426,9 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
         Ok(())
     }
 
-    fn visit_while(&mut self, condition: &Expr, body: &Box<Stmt>) -> Result<(), Unwind> {
-        while is_truthy(&condition.accept(self)?) {
-            body.accept(self)?;
+    fn visit_while(&mut self, condition: &Expr, body: &Stmt) -> Result<(), Unwind> {
+        while is_truthy(&self.evaluate(condition)?) {
+            self.execute(body)?;
         }
 
         Ok(())

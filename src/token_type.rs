@@ -11,7 +11,7 @@ pub enum TokenType {
     Less, LessEqual,
 
     // Literals.
-    Identifier(String), String(String), Number(f64),
+    Identifier(usize, String), String(String), Number(f64),
 
     // Keywords.
     And, Class, Else, False, Fun, For, If, Nil, Or,

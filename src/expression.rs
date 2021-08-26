@@ -1,7 +1,7 @@
 use crate::object::Object;
 use crate::token::Token;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Expr {
     Assignment(Token, Box<Expr>),
     Binary(Box<Expr>, Token, Box<Expr>),
@@ -14,13 +14,13 @@ pub enum Expr {
 }
 
 pub trait Visitor<T> {
-    fn visit_assignment(&mut self, name: &Token, object: &Box<Expr>) -> T;
-    fn visit_binary(&mut self, left: &Box<Expr>, operator: &Token, right: &Box<Expr>) -> T;
-    fn visit_call(&mut self, callee: &Box<Expr>, paren: &Token, arguments: &[Expr]) -> T;
-    fn visit_grouping(&mut self, expression: &Box<Expr>) -> T;
+    fn visit_assignment(&mut self, name: &Token, object: &Expr) -> T;
+    fn visit_binary(&mut self, left: &Expr, operator: &Token, right: &Expr) -> T;
+    fn visit_call(&mut self, callee: &Expr, paren: &Token, arguments: &[Expr]) -> T;
+    fn visit_grouping(&mut self, expression: &Expr) -> T;
     fn visit_literal(&mut self, object: &Object) -> T;
-    fn visit_logical(&mut self, left: &Box<Expr>, operator: &Token, right: &Box<Expr>) -> T;
-    fn visit_unary(&mut self, operator: &Token, right: &Box<Expr>) -> T;
+    fn visit_logical(&mut self, left: &Expr, operator: &Token, right: &Expr) -> T;
+    fn visit_unary(&mut self, operator: &Token, right: &Expr) -> T;
     fn visit_variable(&mut self, name: &Token) -> T;
 }
 

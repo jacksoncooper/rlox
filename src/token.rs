@@ -12,10 +12,9 @@ impl Token {
         Token { token_type, lexeme, line }
     }
 
-    pub fn to_name(&self) -> &str {
+    pub fn to_name(&self) -> (&usize, &str) {
         match self.token_type {
-            TT::Identifier(ref name) => name,
-
+            TT::Identifier(ref identifier, ref name) => (identifier, name),
             // A panic here represents a failure in the parser.
             _ => panic!("token is not an identifier")
         }

@@ -8,6 +8,7 @@ pub struct Scanner {
     start: usize,
     current: usize,
     line: usize,
+    identifier_key: usize,
     stumbled: bool,
 }
 
@@ -19,6 +20,7 @@ impl Scanner {
             start: 0,
             current: 0,
             line: 1,
+            identifier_key: 0,
             stumbled: false,
         }
     }
@@ -74,7 +76,7 @@ impl Scanner {
 
             _  => {
                 // These characters will be ignored and not passed to the parser.
-                error::syntax_error(self.line, "Unexpected character.");
+                error::scanner_error(self.line, "Unexpected character.");
             }
         }
     }
@@ -138,7 +140,7 @@ impl Scanner {
         }
 
         if self.is_at_end() {
-            error::syntax_error(self.line, "Unterminated string.");
+            error::scanner_error(self.line, "Unterminated string.");
             self.stumbled = true;
             return;
         }
@@ -164,7 +166,7 @@ impl Scanner {
         match maybe_number {
             Ok(number) => self.add_token(TT::Number(number)),
             Err(_) => {
-                error::syntax_error(
+                error::scanner_error(
                     self.line,
                     "Number cannot be represented with 64 bits."
                 );
@@ -200,7 +202,12 @@ impl Scanner {
             "true"   => TT::True,
             "var"    => TT::Var,
             "while"  => TT::While,
-            _        => TT::Identifier(identifier)
+            _        => {
+                // Each identifier has a unique `usize` key for resolution.
+                let identifier = TT::Identifier(self.identifier_key, identifier);
+                self.identifier_key += 1;
+                identifier
+            }
         };
 
         self.add_token(token);

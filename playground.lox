@@ -1,19 +1,18 @@
-fun make_counter() {
-    var on = 0;
+{
+    var my_breakfast = "eggs";
+    {
+        fun show_breakfast() {
+            print my_breakfast;
+        }
 
-    fun count() {
-        on = on + 1;
-        print on;
+        show_breakfast();
+
+        var my_breakfast = "oatmeal";
+
+        show_breakfast();
+
+        my_breakfast = "cow";
+
+        show_breakfast();
     }
-
-    return count;
 }
-
-var my_counter = make_counter();
-
-my_counter(1);
-my_counter();
-my_counter();
-my_counter();
-my_counter();
-my_counter();

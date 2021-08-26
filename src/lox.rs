@@ -7,6 +7,7 @@ use std::process;
 use crate::error::LoxError;
 use crate::interpreter::Interpreter;
 use crate::parser::Parser;
+use crate::resolver::Resolver;
 use crate::scanner::Scanner;
 
 // Exit codes from FreeBSD's 'sysexits.h' header: https://bit.ly/36JtSK0.
@@ -38,6 +39,7 @@ fn run_file(path: &str) -> Result<(), i32> {
     match status {
         Err(LoxError::Scan)      => Err(65),
         Err(LoxError::Parse)     => Err(65),
+        Err(LoxError::Resolve)   => Err(65),
         Err(LoxError::Interpret) => Err(70),
         Ok(())                   => Ok(()),
     }
@@ -81,7 +83,11 @@ fn run(source: &str) -> Result<(), LoxError> {
     //     println!("{:#?}", statement);
     // }
 
-    let mut interpreter = Interpreter::new();
+    let mut resolver = Resolver::new();
+    resolver.resolve_statements(&statements);
+    let resolutions = resolver.consume()?;
+
+    let mut interpreter = Interpreter::new(resolutions);
     interpreter.interpret(statements)?;
 
     Ok(())
