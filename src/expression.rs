@@ -1,7 +1,7 @@
 use crate::object::Object;
 use crate::token::Token;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum Expr {
     Assignment(Token, Box<Expr>),
     Binary(Box<Expr>, Token, Box<Expr>),

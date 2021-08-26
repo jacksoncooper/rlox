@@ -1,3 +1,4 @@
+use std::cmp;
 use std::convert::TryFrom;
 use std::fmt;
 use std::rc::Rc;
@@ -9,12 +10,7 @@ use crate::object::Object;
 use crate::statement::Stmt;
 use crate::token::Token;
 
-// TODO: Deriving PartialEq to compare functions is hilariously slow. Among the
-// other members, Rust compares their closures, recursively walking each
-// environment and comparing their bindings. Learn how to compare memory
-// addresses.
-
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum Callable {
     Clock,
     Function(Rc<Token>, Rc<Vec<Token>>, Rc<Vec<Stmt>>, env::Environment)
@@ -26,6 +22,21 @@ impl fmt::Display for Callable {
             Callable::Clock => write!(f, "<native fn>"),
             Callable::Function(name, ..) =>
                 write!(f, "<fn {}>", name.to_name().1)
+        }
+    }
+}
+
+impl cmp::PartialEq for Callable {
+    fn eq(&self, other: &Callable) -> bool {
+        match (self, other) {
+            (Callable::Function(name, ..), Callable::Function(other_name, ..)) =>
+                // Identifier tokens now contain a unique identifier produced
+                // by the scanner. We implicitly compare those.
+                name == other_name,
+            (Callable::Clock, Callable::Clock) =>
+                true,
+            _ =>
+                false,
         }
     }
 }

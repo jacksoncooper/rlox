@@ -66,6 +66,11 @@ impl Resolver {
         self.current_function = function_type;
 
         for parameter in parameters {
+            // It's not technically necessary to declare and define the
+            // parameter name. Just a definition would suffice but the
+            // semantics are nice and Bob does it in the book. We can afford
+            // a redundant hash and flipping a boolean.
+
             self.declare(parameter);
             self.define(parameter);
         }
