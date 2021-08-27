@@ -33,22 +33,30 @@ pub enum Callable {
 impl fmt::Display for Callable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Callable::Clock => write!(f, "<native fn>"),
+            Callable::Class(def::Class(name, ..)) =>
+                write!(f, "{}", name.to_name().1),
+            Callable::Clock =>
+                write!(f, "<native fn>"),
             Callable::Function(def::Function(name, ..), _) =>
-                write!(f, "<fn {}>", name.to_name().1)
+                write!(f, "<fn {}>", name.to_name().1),
         }
     }
 }
 
 impl cmp::PartialEq for Callable {
     fn eq(&self, other: &Callable) -> bool {
+        // Identifier tokens now contain a unique identifier produced
+        // by the scanner. We implicitly compare those.
         match (self, other) {
-            (Callable::Function(def::Function(name, ..), _),
-             Callable::Function(def::Function(other_name, ..), _)) =>
-                // Identifier tokens now contain a unique identifier produced
-                // by the scanner. We implicitly compare those.
-                name.token_type == other_name.token_type,
-            (Callable::Clock, Callable::Clock) => true,
+            ( Callable::Class(def::Class(name, ..))
+            , Callable::Class(def::Class(other_name, ..))
+            ) => name.token_type == other_name.token_type,
+            ( Callable::Function(def::Function(name, ..), _)
+            , Callable::Function(def::Function(other_name, ..), _)
+            ) => name.token_type == other_name.token_type,
+            ( Callable::Clock
+            , Callable::Clock
+            ) => true,
             _ => false,
         }
     }
@@ -57,6 +65,7 @@ impl cmp::PartialEq for Callable {
 impl Callable {
     pub fn arity(&self) -> u8 {
         match self {
+            Callable::Class(_) => 0,
             Callable::Clock => 0,
             Callable::Function(def::Function(_, parameters, ..), _) => {
                 // TODO: This parameter check doesn't need to happen every time
@@ -80,6 +89,11 @@ impl Callable {
         arguments: Vec<Object>
     ) -> Result<Object, int::Unwind> {
         match self {
+            Callable::Class(_) => {
+               // TODO: Don't produce a class object here. This is for
+               // instances silly.
+                Ok(Object::Callable(self.clone()))
+            },
             Callable::Clock => {
                 let now = SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH);

@@ -77,7 +77,7 @@ impl Parser {
 
     fn declaration(&mut self) -> Result<Stmt, Error> {
         if self.advance_if(&[TT::Class]).is_some() {
-            self.class_declaration();
+            return self.class_declaration();
         }
 
         if self.advance_if(&[TT::Fun]).is_some() {
@@ -96,7 +96,7 @@ impl Parser {
 
         self.expect(TT::LeftBrace, "Expect '{' before class body.".to_string())?;
         
-        let methods = Vec::new();
+        let mut methods = Vec::new();
         while !self.check(&TT::RightBrace) && !self.is_at_end() {
             methods.push(self.function("method")?);
         }

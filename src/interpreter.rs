@@ -290,7 +290,7 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
             )))
         }
     }
-
+        
     fn visit_grouping(&mut self, expression: &Expr) -> Result<Object, Unwind> {
         self.evaluate(expression)
     }
@@ -362,6 +362,21 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
             statements,
             env::new_with_enclosing(&self.local)
         )
+    }
+
+    fn visit_class(&mut self, definition: &def::Class) -> Result<(), Unwind> {
+        let def::Class(name, ..) = definition;
+        let name = name.to_name().1;
+
+        env::define(&mut self.local, name, &Object::Nil);
+
+        let class = Object::Callable(Callable::Class(
+            definition.clone()
+        ));
+
+        env::define(&mut self.local, name, &class);
+
+        Ok(())
     }
 
     fn visit_expression(&mut self, expression: &Expr) -> Result<(), Unwind> {
