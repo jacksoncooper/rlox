@@ -1,13 +1,13 @@
-use std::rc::Rc;
-
+use crate::callable::definitions as def;
 use crate::expression::Expr;
 use crate::token::Token;
 
 #[derive(Debug)]
 pub enum Stmt {
     Block(Vec<Stmt>),
+    Class(def::Class),
     Expression(Expr),
-    Function(Rc<Token>, Rc<Vec<Token>>, Rc<Vec<Stmt>>),
+    Function(def::Function),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     Print(Expr),
     Return(Token, Expr),
@@ -17,11 +17,13 @@ pub enum Stmt {
 
 pub trait Visitor<T> {
     fn visit_block(&mut self, statements: &[Stmt]) -> T;
+    fn visit_class(&mut self, definition: &def::Class) -> T;
     fn visit_expression(&mut self, expression: &Expr) -> T;
-    fn visit_function(&mut self, name: &Rc<Token>, parameters: &Rc<Vec<Token>>,
-        body: &Rc<Vec<Stmt>>) -> T;
-    fn visit_if(&mut self, condition: &Expr, then_branch: &Stmt,
-        else_branch: &Option<Box<Stmt>>) -> T;
+    fn visit_function(&mut self, definition: &def::Function) -> T;
+    fn visit_if(
+        &mut self, condition: &Expr,
+        then_branch: &Stmt, else_branch: &Option<Box<Stmt>>
+    ) -> T;
     fn visit_print(&mut self, object: &Expr) -> T;
     fn visit_return(&mut self, keyword: &Token, object: &Expr) -> T;
     fn visit_var(&mut self, name: &Token, object: &Option<Expr>) -> T;
@@ -33,10 +35,12 @@ impl Stmt {
         match self {
             Stmt::Block(statements) =>
                 visitor.visit_block(statements),
+            Stmt::Class(definition) =>
+                visitor.visit_class(definition),
             Stmt::Expression(expression) =>
                 visitor.visit_expression(expression),
-            Stmt::Function(name, parameters, body) =>
-                visitor.visit_function(name, parameters, body),
+            Stmt::Function(definition) =>
+                visitor.visit_function(definition),
             Stmt::If(condition, then_branch, else_branch) =>
                 visitor.visit_if(condition, then_branch, else_branch),
             Stmt::Print(object) =>

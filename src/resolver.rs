@@ -1,7 +1,6 @@
-use std::rc::Rc;
-
 use std::collections::HashMap;
 
+use crate::callable::definitions as def;
 use crate::error;
 use crate::expression::{self as expr, Expr};
 use crate::object::Object;
@@ -54,11 +53,11 @@ impl Resolver {
     }
 
     fn resolve_function(
-        &mut self,
-        _: &Token, parameters: &[Token],
-        body: &[Stmt],
+        &mut self, definition: &def::Function,
         function_type: FunctionType,
     ) {
+        let def::Function(_, parameters, body) = definition;
+        let parameters: &Vec<Token> = &parameters;
         let enclosing_function = self.current_function;
 
         self.begin_scope();
@@ -66,7 +65,7 @@ impl Resolver {
         self.current_function = function_type;
 
         for parameter in parameters {
-            // It's not technically necessary to declare and define the
+            // TODO: It's not technically necessary to declare and define the
             // parameter name. Just a definition would suffice but the
             // semantics are nice and Bob does it in the book. We can afford
             // a redundant hash and flipping a boolean.
@@ -181,18 +180,24 @@ impl stmt::Visitor<()> for Resolver {
         self.end_scope();
     }
 
+    fn visit_class(&mut self, definition: &def::Class) {
+        let def::Class(name, _) = definition;
+
+        self.declare(name);
+        self.define(name);
+    }
+
     fn visit_expression(&mut self, expression: &Expr) {
         self.resolve_expression(expression)
     }
 
-    fn visit_function(
-        &mut self,
-        name: &Rc<Token>, parameters: &Rc<Vec<Token>>,
-        body: &Rc<Vec<Stmt>>
-    ) {
+    fn visit_function(&mut self, definition: &def::Function) {
+        let def::Function(name, ..) = definition;
+
         self.declare(name);
         self.define(name);
-        self.resolve_function(name, parameters, body, FunctionType::Function);
+
+        self.resolve_function(definition, FunctionType::Function);
     }
 
     fn visit_if(

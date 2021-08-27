@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use crate::callable::definitions as def;
 use crate::error;
 use crate::object::Object;
 use crate::expression::Expr;
@@ -75,8 +76,12 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Stmt, Error> {
+        if self.advance_if(&[TT::Class]).is_some() {
+            self.class_declaration();
+        }
+
         if self.advance_if(&[TT::Fun]).is_some() {
-            return self.function("function");
+            return Ok(Stmt::Function(self.function("function")?));
         }
 
         if self.advance_if(&[TT::Var]).is_some() {
@@ -86,7 +91,22 @@ impl Parser {
         self.statement()
     }
 
-    fn function(&mut self, kind: &str) -> Result<Stmt, Error> {
+    fn class_declaration(&mut self) -> Result<Stmt, Error> {
+        let name = self.expect_identifier("Expect class name.".to_string())?;
+
+        self.expect(TT::LeftBrace, "Expect '{' before class body.".to_string())?;
+        
+        let methods = Vec::new();
+        while !self.check(&TT::RightBrace) && !self.is_at_end() {
+            methods.push(self.function("method")?);
+        }
+
+        self.expect(TT::RightBrace, "Expect '}' after class body.".to_string())?;
+
+        Ok(Stmt::Class(def::Class(Rc::new(name), Rc::new(methods))))
+    }
+
+    fn function(&mut self, kind: &str) -> Result<def::Function, Error> {
         let name = self.expect_identifier(
             format!("Expect {} name.", kind)
         )?;
@@ -105,7 +125,7 @@ impl Parser {
 
         let body = self.block()?;
 
-        Ok(Stmt::Function(
+        Ok(def::Function(
            Rc::new(name),
            Rc::new(parameters),
            Rc::new(body),

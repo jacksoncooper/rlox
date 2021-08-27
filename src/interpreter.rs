@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::collections::HashMap;
 
-use crate::callable::Callable;
+use crate::callable::{definitions as def, Callable};
 use crate::environment as env;
 use crate::error;
 use crate::expression::{self as expr, Expr};
@@ -371,12 +371,12 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
 
     fn visit_function(
         &mut self,
-        name: &Rc<Token>, parameters: &Rc<Vec<Token>>, body: &Rc<Vec<Stmt>>
+        definition: &def::Function
     ) -> Result<(), Unwind> {
+        let def::Function(name, ..) = definition;
+
         let object = Object::Callable(Callable::Function(
-            Rc::clone(name),
-            Rc::clone(parameters),
-            Rc::clone(body),
+            def::Function::clone(definition),
             env::copy(&self.local)
         ));
 
