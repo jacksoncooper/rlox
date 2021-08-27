@@ -5,12 +5,14 @@ use std::rc::Rc;
 use std::time::SystemTime;
 
 use crate::environment as env;
+use crate::instance::Instance;
 use crate::interpreter as int;
 use crate::object::Object;
 
 use definitions as def;
 
 pub mod definitions {
+    use std::cmp;
     use std::rc::Rc;
 
     use crate::statement::Stmt;
@@ -19,8 +21,24 @@ pub mod definitions {
     #[derive(Clone, Debug)]
     pub struct Class(pub Rc<Token>, pub Rc<Vec<Function>>);
 
+    impl cmp::PartialEq for Class {
+        fn eq(&self, other: &Class) -> bool {
+            let Class(name, ..) = self;
+            let Class(other_name, ..) = other;
+            name.token_type == other_name.token_type
+        }
+    }
+
     #[derive(Clone, Debug)]
     pub struct Function(pub Rc<Token>, pub Rc<Vec<Token>>, pub Rc<Vec<Stmt>>);
+
+    impl cmp::PartialEq for Function {
+        fn eq(&self, other: &Function) -> bool {
+            let Function(name, ..) = self;
+            let Function(other_name, ..) = other;
+            name.token_type == other_name.token_type
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -48,12 +66,12 @@ impl cmp::PartialEq for Callable {
         // Identifier tokens now contain a unique identifier produced
         // by the scanner. We implicitly compare those.
         match (self, other) {
-            ( Callable::Class(def::Class(name, ..))
-            , Callable::Class(def::Class(other_name, ..))
-            ) => name.token_type == other_name.token_type,
-            ( Callable::Function(def::Function(name, ..), _)
-            , Callable::Function(def::Function(other_name, ..), _)
-            ) => name.token_type == other_name.token_type,
+            ( Callable::Class(definition)
+            , Callable::Class(other_definition)
+            ) => definition == other_definition,
+            ( Callable::Function(definition, _)
+            , Callable::Function(other_definition, _)
+            ) => definition == other_definition,
             ( Callable::Clock
             , Callable::Clock
             ) => true,
@@ -89,10 +107,10 @@ impl Callable {
         arguments: Vec<Object>
     ) -> Result<Object, int::Unwind> {
         match self {
-            Callable::Class(_) => {
-               // TODO: Don't produce a class object here. This is for
-               // instances silly.
-                Ok(Object::Callable(self.clone()))
+            Callable::Class(definition) => {
+                Ok(Object::Instance(
+                    Instance::new(definition.clone())
+                ))
             },
             Callable::Clock => {
                 let now = SystemTime::now()
