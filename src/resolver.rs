@@ -8,15 +8,16 @@ use crate::statement::{self as stmt, Stmt};
 use crate::token::Token;
 
 #[derive(Clone, Copy, PartialEq)]
-enum FunctionType {
+enum Scope {
     Global,
     Function,
+    Method,
 }
 
 pub struct Resolver {
     scopes: Vec<HashMap<String, bool>>,
     resolutions: HashMap<usize, usize>,
-    current_function: FunctionType,
+    scope: Scope,
     stumbled: bool,
 }
 
@@ -25,7 +26,7 @@ impl Resolver {
         Resolver {
             scopes: Vec::new(),
             resolutions: HashMap::new(),
-            current_function: FunctionType::Global,
+            scope: Scope::Global,
             stumbled: false,
         }
     }
@@ -54,15 +55,15 @@ impl Resolver {
 
     fn resolve_function(
         &mut self, definition: &def::Function,
-        function_type: FunctionType,
+        scope: Scope,
     ) {
         let def::Function(_, parameters, body) = definition;
         let parameters: &Vec<Token> = parameters;
-        let enclosing_function = self.current_function;
+        let enclosing = self.scope;
 
         self.begin_scope();
 
-        self.current_function = function_type;
+        self.scope = scope;
 
         for parameter in parameters {
             // TODO: It's not technically necessary to declare and define the
@@ -78,7 +79,7 @@ impl Resolver {
 
         self.end_scope();
 
-        self.current_function = enclosing_function;
+        self.scope = enclosing;
     }
 
     fn resolve_local(&mut self, name: &Token) {
@@ -190,10 +191,15 @@ impl stmt::Visitor<()> for Resolver {
     }
 
     fn visit_class(&mut self, definition: &def::Class) {
-        let def::Class(name, _) = definition;
+        let def::Class(name, methods) = definition;
 
         self.declare(name);
         self.define(name);
+
+        for method in methods {
+            let scope = Scope::Method;
+            self.resolve_function(method, scope);
+        }
     }
 
     fn visit_expression(&mut self, expression: &Expr) {
@@ -206,7 +212,7 @@ impl stmt::Visitor<()> for Resolver {
         self.declare(name);
         self.define(name);
 
-        self.resolve_function(definition, FunctionType::Function);
+        self.resolve_function(definition, Scope::Function);
     }
 
     fn visit_if(
@@ -226,7 +232,7 @@ impl stmt::Visitor<()> for Resolver {
     }
 
     fn visit_return(&mut self, keyword: &Token, object: &Expr) {
-        if self.current_function == FunctionType::Global {
+        if self.scope == Scope::Global {
             error::parse_error(
                 keyword,
                 "Can't return from top-level code."

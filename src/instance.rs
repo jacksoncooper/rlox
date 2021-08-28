@@ -3,21 +3,21 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::callable::definitions as def;
+use crate::callable::Class;
 use crate::object::Object;
 
-type Bindings = HashMap<String, Object>;
+type Fields = HashMap<String, Object>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Instance {
-    definition: def::Class,
-    fields: Rc<RefCell<Bindings>>
+    class: Class,
+    fields: Rc<RefCell<Fields>>
 }
 
 impl Instance {
-    pub fn new(definition: def::Class) -> Instance {
+    pub fn new(class: Class) -> Instance {
         Instance {
-            definition,
+            class,
             fields: Rc::new(RefCell::new(HashMap::new()))
         }
     }
@@ -25,14 +25,18 @@ impl Instance {
 
 impl fmt::Display for Instance {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Instance { definition: def::Class(name, ..), .. } = self;
-        write!(f, "{} instance", name.to_name().1)
+        write!(f, "{} instance", self.class)
     }
 }
 
 impl Instance {
     pub fn get(&self, name: &str) -> Option<Object> {
-        self.fields.borrow().get(name).map(Object::clone)
+        self.fields.borrow().get(name).map_or_else(
+            || self.class.find_method(name).map(
+                |function| Object::Callable(function.erase())
+            ),
+            |field| Some(Object::clone(field))
+        )
     }
 
     pub fn set(&mut self, name: &str, object: &Object) {

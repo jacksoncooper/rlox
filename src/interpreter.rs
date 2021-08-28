@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::collections::HashMap;
 
-use crate::callable::{definitions as def, Callable};
+use crate::callable::{self as call, definitions as def};
 use crate::environment as env;
 use crate::error;
 use crate::expression::{self as expr, Expr};
@@ -37,7 +37,10 @@ impl Interpreter {
     pub fn new(resolutions: HashMap<usize, usize>) -> Interpreter {
         let mut global = env::new();
 
-        env::define(&mut global, "clock", &Object::Callable(Callable::Clock));
+        env::define(
+            &mut global, "clock",
+            &Object::Callable(call::Callable::Native(call::Native::Clock))
+        );
 
         Interpreter {
             global: env::copy(&global),
@@ -400,16 +403,29 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
     }
 
     fn visit_class(&mut self, definition: &def::Class) -> Result<(), Unwind> {
-        let def::Class(name, ..) = definition;
-        let name = name.to_name().1;
+        let def::Class(token, function_definitions) = definition;
+        let name = token.to_name().1;
 
         env::define(&mut self.local, name, &Object::Nil);
 
-        let class = Object::Callable(Callable::Class(
-            definition.clone()
-        ));
+        let mut methods = HashMap::new();
+        for function_definition in function_definitions {
+            let def::Function(function_name, ..) = function_definition;
+            methods.insert(
+                function_name.to_name().1.to_string(),
+                call::Function::new(
+                    function_definition.clone(),
+                    env::copy(&self.local)
+                )
+            );
+        }
 
-        env::define(&mut self.local, name, &class);
+        let class = call::Class::new_callable(
+            token.clone(),
+            Rc::new(methods)
+        );
+
+        env::define(&mut self.local, name, &Object::Callable(class));
 
         Ok(())
     }
@@ -423,14 +439,15 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
         &mut self,
         definition: &def::Function
     ) -> Result<(), Unwind> {
-        let def::Function(name, ..) = definition;
+        let def::Function(token, ..) = definition;
+        let name = token.to_name().1;
 
-        let object = Object::Callable(Callable::Function(
-            def::Function::clone(definition),
+        let object = call::Function::new_callable(
+            definition.clone(),
             env::copy(&self.local)
-        ));
+        );
 
-        env::define(&mut self.local, name.to_name().1, &object);
+        env::define(&mut self.local, name, &Object::Callable(object));
 
         Ok(())
     }

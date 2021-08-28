@@ -1,0 +1,23 @@
+class Bagel {
+    eat() {
+        print "*crunch* *crunch*";
+    }
+}
+
+fun read_watch() {
+    print clock();
+}
+
+var Toaster = Bagel;
+
+var sesame = Toaster();
+
+sesame.seeds = 143;
+
+print sesame.seeds;
+
+sesame.pocket_watch = read_watch;
+
+sesame.pocket_watch();
+
+sesame.eat();

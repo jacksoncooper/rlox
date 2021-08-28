@@ -103,7 +103,7 @@ impl Parser {
 
         self.expect(TT::RightBrace, "Expect '}' after class body.".to_string())?;
 
-        Ok(Stmt::Class(def::Class(Rc::new(name), Rc::new(methods))))
+        Ok(Stmt::Class(def::Class(Rc::new(name), methods)))
     }
 
     fn function(&mut self, kind: &str) -> Result<def::Function, Error> {
