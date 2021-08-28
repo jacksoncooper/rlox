@@ -69,8 +69,7 @@ pub fn assign(local: &mut Environment, name: &str, value: &Object) -> bool {
     if local.borrow().values.contains_key(name) {
         local.borrow_mut().values .insert(name.to_string(), Object::clone(value));
         true
-    }
-    else {
+    } else {
         match local.borrow_mut().enclosing {
             Some(ref mut enclosing) => assign(enclosing, name, value),
             None => false,

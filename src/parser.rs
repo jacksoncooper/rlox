@@ -329,11 +329,13 @@ impl Parser {
 
             return match expr {
                 Expr::Variable(name) =>
-                    Ok(Expr::Assignment(name, Box::new(value))), // [1]
+                    Ok(Expr::Assignment(name, Box::new(value))),
+                Expr::Get(object, name) =>
+                    Ok(Expr::Set(object, name, Box::new(value))),
                 _ => {
                     error::parse_error(&equals, "Invalid assignment target.");
                     self.stumbled = true;
-                    Ok(value)
+                    Ok(value) // [1]
                 }
             };
         }
@@ -391,6 +393,11 @@ impl Parser {
         loop {
             if self.advance_if(&[TT::LeftParen]).is_some() {
                 expr = self.finish_call(expr)?;
+            } else if self.advance_if(&[TT::Dot]).is_some() {
+                let name = self.expect_identifier(
+                    "Expect property name after '.'.".to_string()
+                )?;
+                expr = Expr::Get(Box::new(expr), name);
             } else {
                 break;
             }

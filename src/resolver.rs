@@ -57,7 +57,7 @@ impl Resolver {
         function_type: FunctionType,
     ) {
         let def::Function(_, parameters, body) = definition;
-        let parameters: &Vec<Token> = &parameters;
+        let parameters: &Vec<Token> = parameters;
         let enclosing_function = self.current_function;
 
         self.begin_scope();
@@ -143,6 +143,10 @@ impl expr::Visitor<()> for Resolver {
         }
     }
 
+    fn visit_get(&mut self, object: &Expr, _: &Token) {
+        self.resolve_expression(object);
+    }
+
     fn visit_grouping(&mut self, expression: &Expr) {
         self.resolve_expression(expression);
     }
@@ -152,6 +156,11 @@ impl expr::Visitor<()> for Resolver {
     fn visit_logical(&mut self, left: &Expr, _: &Token, right: &Expr) {
         self.resolve_expression(left);
         self.resolve_expression(right);
+    }
+
+    fn visit_set(&mut self, object: &Expr, _: &Token, value: &Expr) {
+        self.resolve_expression(value);
+        self.resolve_expression(object);
     }
 
     fn visit_unary(&mut self, _: &Token, right: &Expr) {

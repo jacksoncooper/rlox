@@ -290,7 +290,25 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
             )))
         }
     }
-        
+ 
+    fn visit_get(&mut self, object: &Expr, token: &Token) -> Result<Object, Unwind> {
+        let object = self.evaluate(object)?;
+        let name = token.to_name().1;
+
+        match object {
+            Object::Instance(instance) =>
+                instance.get(name).map_or_else(
+                    || Err(Unwind::Error(Error::new(
+                        token, format!("Undefined property '{}'.", name)
+                    ))),
+                    Ok
+                ),
+            _ => Err(Unwind::Error(Error::new(
+                token, "Only instances have properties.".to_string()
+            )))
+        }
+    }
+
     fn visit_grouping(&mut self, expression: &Expr) -> Result<Object, Unwind> {
         self.evaluate(expression)
     }
@@ -328,6 +346,23 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
         }
 
         self.evaluate(right)
+    }
+
+    fn visit_set(&mut self, object: &Expr, token: &Token, value: &Expr) -> Result<Object, Unwind> {
+        let object = self.evaluate(object)?;
+
+        match object {
+            Object::Instance(mut instance) => {
+                let name = token.to_name().1;
+                let value = self.evaluate(value)?;
+                instance.set(name, &value);
+                Ok(value)
+            },
+            _ => Err(Unwind::Error(Error::new(
+                token,
+                "Only instances have fields.".to_string()
+            )))
+        }
     }
 
     fn visit_unary(&mut self, operator: &Token, right: &Expr) -> Result<Object, Unwind> {
