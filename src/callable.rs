@@ -36,11 +36,7 @@ impl Class {
         Class(token, methods)
     }
 
-    pub fn new_callable(token: Rc<Token>, methods: Rc<Methods>) -> Callable {
-        Callable::Class(Class::new(token, methods))
-    }
-
-    pub fn _erase(self) -> Callable {
+    pub fn erase(self) -> Callable {
         Callable::Class(self)
     }
 
@@ -81,10 +77,6 @@ pub struct Function(def::Function, env::Environment);
 impl Function {
     pub fn new(def: def::Function, env: env::Environment) -> Function {
         Function(def, env)
-    }
-
-    pub fn new_callable(def: def::Function, env: env::Environment) -> Callable {
-        Callable::Function(Function::new(def, env))
     }
 
     pub fn erase(self) -> Callable {
@@ -140,13 +132,16 @@ impl cmp::PartialEq for Function {
     }
 }
 
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum Native {
     Clock
 }
 
 impl Native {
+    pub fn erase(self) -> Callable {
+        Callable::Native(self)
+    }
+
     pub fn arity(&self) -> u8 {
         match self {
             Native::Clock => 0

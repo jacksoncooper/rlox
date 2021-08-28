@@ -39,7 +39,7 @@ impl Interpreter {
 
         env::define(
             &mut global, "clock",
-            &Object::Callable(call::Callable::Native(call::Native::Clock))
+            &Object::Callable(call::Native::Clock.erase())
         );
 
         Interpreter {
@@ -420,10 +420,10 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
             );
         }
 
-        let class = call::Class::new_callable(
+        let class = call::Class::new(
             token.clone(),
             Rc::new(methods)
-        );
+        ).erase();
 
         env::define(&mut self.local, name, &Object::Callable(class));
 
@@ -442,10 +442,10 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
         let def::Function(token, ..) = definition;
         let name = token.to_name().1;
 
-        let object = call::Function::new_callable(
+        let object = call::Function::new(
             definition.clone(),
             env::copy(&self.local)
-        );
+        ).erase();
 
         env::define(&mut self.local, name, &Object::Callable(object));
 
