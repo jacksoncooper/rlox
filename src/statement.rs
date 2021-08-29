@@ -10,7 +10,7 @@ pub enum Stmt {
     Function(def::Function),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     Print(Expr),
-    Return(Token, Expr),
+    Return(Token, Option<Expr>),
     Var(Token, Option<Expr>),
     While(Expr, Box<Stmt>),
 }
@@ -25,7 +25,7 @@ pub trait Visitor<T> {
         then_branch: &Stmt, else_branch: &Option<Box<Stmt>>
     ) -> T;
     fn visit_print(&mut self, object: &Expr) -> T;
-    fn visit_return(&mut self, keyword: &Token, object: &Expr) -> T;
+    fn visit_return(&mut self, keyword: &Token, object: &Option<Expr>) -> T;
     fn visit_var(&mut self, name: &Token, object: &Option<Expr>) -> T;
     fn visit_while(&mut self, condition: &Expr, body: &Stmt) -> T;
 }

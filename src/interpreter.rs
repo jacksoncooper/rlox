@@ -256,7 +256,7 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
     ) -> Result<Object, Unwind> {
         let callee = self.evaluate(callee)?;
 
-        return if let Object::Callable(callable) = callee {
+        if let Object::Callable(callable) = callee {
             let mut objects = Vec::new();
 
             for argument in arguments {
@@ -279,13 +279,7 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
                 )));
             }
 
-            let result = callable.call(self, objects);
-
-            if let Err(Unwind::Return(_, object)) = result {
-                return Ok(object);
-            }
-
-            result
+            callable.call(self, objects)
         } else {
             Err(Unwind::Error(Error::new(
                 paren,
@@ -417,13 +411,16 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
         env::define(&mut self.local, name, &Object::Nil);
 
         let mut methods = HashMap::new();
+
         for function_definition in function_definitions {
             let def::Function(function_name, ..) = function_definition;
+
             methods.insert(
                 function_name.to_name().1.to_string(),
                 call::Function::new(
                     function_definition.clone(),
-                    env::copy(&self.local)
+                    env::copy(&self.local),
+                    name == "init"
                 )
             );
         }
@@ -452,7 +449,8 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
 
         let object = call::Function::new(
             definition.clone(),
-            env::copy(&self.local)
+            env::copy(&self.local),
+            false
         ).erase();
 
         env::define(&mut self.local, name, &Object::Callable(object));
@@ -481,10 +479,18 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
         Ok(())
     }
 
-    fn visit_return(&mut self, keyword: &Token, object: &Expr) -> Result<(), Unwind> {
+    fn visit_return(
+        &mut self,
+        keyword: &Token,
+        object: &Option<Expr>
+    ) -> Result<(), Unwind> {
         Err(Unwind::Return(
-            Token::clone(keyword),
-            self.evaluate(object)?
+            keyword.clone(),
+            if let Some(object) = object {
+                self.evaluate(object)?
+            } else {
+                Object::Nil
+            }
         ))
     }
 

@@ -1,10 +1,29 @@
 class Cake {
+    init(tastes) {
+        this.tastes = tastes;
+    }
+
     taste() {
-        var adjective = "delicious";
-        print "The " + this.flavor + " cake is " + adjective + ".";
+        print "The " + this.flavor + " cake is " + this.adjective + ".";
+        this.tastes = this.tastes + 1;
+    }
+
+    more() {
+        this.adjective = "very " + this.adjective;
+        this.taste();
     }
 }
 
-var cake = Cake();
+var cake = Cake(1);
+
+cake.adjective = "delicious";
 cake.flavor = "German chocolate";
+cake.tastes = 0;
+
 cake.taste();
+
+cake.more();
+cake.more();
+cake.more();
+
+print cake.tastes;

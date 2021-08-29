@@ -36,6 +36,9 @@ pub fn link(local: &mut Environment, enclosing: &Environment) {
     bindings.enclosing = Some(Rc::clone(enclosing));
 }
 
+// TODO: Own the parameters in this function. There's a lot of excess cloning
+// and borrowing to conform to the signature.
+
 pub fn define(local: &mut Environment, name: &str, value: &Object) {
     let mut bindings = local.borrow_mut();
     bindings.values.insert(name.to_string(), Object::clone(value));

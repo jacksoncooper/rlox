@@ -32,8 +32,8 @@ type Methods = HashMap<String, Function>;
 pub struct Class(Rc<Token>, Rc<Methods>);
 
 impl Class {
-    pub fn new(token: Rc<Token>, methods: Rc<Methods>) -> Class {
-        Class(token, methods)
+    pub fn new(name: Rc<Token>, methods: Rc<Methods>) -> Class {
+        Class(name, methods)
     }
 
     pub fn erase(self) -> Callable {
@@ -41,13 +41,23 @@ impl Class {
     }
 
     pub fn arity(&self) -> u8 {
-        0
+        if let Some(initializer) = self.find_method("init") {
+            initializer.arity()
+        } else { 0 }
     }
 
-    pub fn call(&self) -> Result<Object, int::Unwind> {
-        Ok(Object::Instance(Instance::new(
-            self.clone()
-        )))
+    pub fn call(
+        &self,
+        interpreter: &mut Interpreter,
+        arguments: Vec<Object>
+    ) -> Result<Object, int::Unwind> {
+        let instance = Instance::new(self.clone());
+
+        if let Some(initializer) = self.find_method("init") {
+            initializer.bind(&instance).call(interpreter, arguments)?;
+        }
+
+        Ok(Object::Instance(instance))
     }
 
     pub fn find_method(&self, name: &str) -> Option<Function> {
@@ -71,12 +81,18 @@ impl cmp::PartialEq for Class {
     }
 }
 
+// TODO: Yikes use record syntax for goodness' sake.
+
 #[derive(Clone, Debug)]
-pub struct Function(def::Function, env::Environment);
+pub struct Function(def::Function, env::Environment, bool);
 
 impl Function {
-    pub fn new(def: def::Function, env: env::Environment) -> Function {
-        Function(def, env)
+    pub fn new(
+        definition: def::Function,
+        environment: env::Environment,
+        is_initializer: bool
+    ) -> Function {
+        Function(definition, environment, is_initializer)
     }
 
     pub fn erase(self) -> Callable {
@@ -84,7 +100,7 @@ impl Function {
     }
 
     pub fn arity(&self) -> u8 {
-        let Function(def::Function(_, parameters, ..), _) = self;
+        let Function(def::Function(_, parameters, ..), ..) = self;
 
         // TODO: This parameter check doesn't need to happen every time a
         // function is called. It can be done in the interpreter when visiting a
@@ -103,38 +119,58 @@ impl Function {
         interpreter: &mut Interpreter,
         arguments: Vec<Object>,
     ) -> Result<Object, int::Unwind> {
-        let Function(def::Function(_, parameters, body), closure) = self;
+        let Function(
+            def::Function(_, parameters, body),
+            closure, is_initializer
+        ) = self;
 
         let mut local = env::new_with_enclosing(closure);
+
+        // A panic here indicates an error in the parser or interpreter.
+        if parameters.len() != arguments.len() {
+            panic!("zip destroys parameters or arguments")
+        }
 
         for (parameter, argument) in parameters.iter().zip(&arguments) {
             env::define(&mut local, parameter.to_name().1, argument);
         }
 
-        interpreter.execute_block(body, env::copy(&local))?;
+        let result = interpreter.execute_block(body, env::copy(&local));
 
-        Ok(Object::Nil)
+        // The programmer returned with an explicit `return` keyword.
+        match result {
+            Err(int::Unwind::Return(_, object)) =>
+                if *is_initializer {
+                    Ok(env::get_at(closure, 0, "this"))
+                } else { Ok(object) },
+            Err(error) => Err(error),
+            Ok(()) =>
+                // Implicit return, either `nil` or `this` if initializer.
+                if *is_initializer {
+                    Ok(env::get_at(closure, 0, "this"))
+                } else { Ok(Object::Nil) },
+        }
     }
 
-    pub fn bind(&self, object: Object) -> Function {
-        let Function(definition, closure) = self;
-        let mut with_this = env::new_with_enclosing(&closure);
-        env::define(&mut with_this, "this", &object);
-        Function(definition.clone(), with_this)
+    pub fn bind(&self, instance: &Instance) -> Function {
+        let Function(definition, closure, is_initializer) = self;
+        let mut with_this = env::new_with_enclosing(closure);
+        env::define(&mut with_this, "this", &Object::Instance(instance.clone()));
+        Function(definition.clone(), with_this, *is_initializer)
     }
 }
 
 impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Function(def::Function(name, ..), _) = self;
+        let Function(def::Function(name, ..), ..) = self;
         write!(f, "<fn {}>", name.to_name().1)
     }
 }
 
 impl cmp::PartialEq for Function {
     fn eq(&self, other: &Function) -> bool {
-        let Function(def::Function(name, ..), _) = self;
-        let Function(def::Function(other_name, ..), _) = other;
+        let Function(def::Function(name, ..), ..) = self;
+        let Function(def::Function(other_name, ..), ..) = other;
         name.token_type == other_name.token_type
     }
 }
@@ -204,7 +240,8 @@ impl Callable {
         arguments: Vec<Object>
     ) -> Result<Object, int::Unwind> {
         match self {
-            Callable::Class(class) => class.call(),
+            Callable::Class(class) =>
+                class.call(interpreter, arguments),
             Callable::Function(function) =>
                 function.call(interpreter, arguments),
             Callable::Native(native) =>

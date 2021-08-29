@@ -9,8 +9,9 @@ use crate::token::Token;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Scope {
-    Global,
+    Initializer,
     Function,
+    Global,
     Method,
 }
 
@@ -104,11 +105,7 @@ impl Resolver {
     fn declare(&mut self, name: &Token) {
         if let Some(scope) = self.scopes.last() {
             if scope.contains_key(name.to_name().1) {
-                error::parse_error(
-                    name,
-                    "Already a variable with this name in this scope."
-                );
-                self.stumbled = true;
+                self.stumble(name, "Already a variable with this name in this scope.");
             } else {
                 self.add_to_scope(name.to_name().1, false);
             }
@@ -123,6 +120,11 @@ impl Resolver {
         if let Some(scope) = self.scopes.last_mut() {
             scope.insert(name.to_string(), resolved);
         }
+    }
+
+    fn stumble(&mut self, at: &Token, reason: &str) {
+        error::parse_error(at, reason);
+        self.stumbled = true;
     }
 }
 
@@ -166,6 +168,10 @@ impl expr::Visitor<()> for Resolver {
     }
 
     fn visit_this(&mut self, this: &Token) {
+        if self.scope != Scope::Method && self.scope != Scope::Initializer {
+            self.stumble(this, "Can't use 'this' outside of a class.");
+        }
+
         self.resolve_local(this);
     }
 
@@ -176,11 +182,7 @@ impl expr::Visitor<()> for Resolver {
     fn visit_variable(&mut self, name: &Token) {
         if let Some(scope) = self.scopes.last() {
             if let Some(false) = scope.get(name.to_name().1) {
-                error::parse_error(
-                    name,
-                    "Can't read local variable in its own initializer."
-                );
-                self.stumbled = true;
+                self.stumble(name, "Can't read local variable in its own initializer.");
             }
         }
 
@@ -206,7 +208,13 @@ impl stmt::Visitor<()> for Resolver {
         self.add_to_scope("this", true);
 
         for method in methods {
-            self.resolve_function(method, Scope::Method);
+            let def::Function(name, ..) = method;
+
+            let scope = if name.to_name().1 == "init" {
+                Scope::Initializer
+            } else { Scope::Method };
+
+            self.resolve_function(method, scope);
         }
 
         self.end_scope();
@@ -241,14 +249,16 @@ impl stmt::Visitor<()> for Resolver {
         self.resolve_expression(object);
     }
 
-    fn visit_return(&mut self, keyword: &Token, object: &Expr) {
+    fn visit_return(&mut self, keyword: &Token, object: &Option<Expr>) {
         if self.scope == Scope::Global {
-            error::parse_error(
-                keyword,
-                "Can't return from top-level code."
-            );
-            self.stumbled = true;
-        } else {
+            self.stumble(keyword, "Can't return from top-level code.");
+        }
+        
+        if let Some(object) = object {
+            if self.scope == Scope::Initializer{
+                self.stumble(keyword, "Can't return a value from an initializer.");
+            }
+
             self.resolve_expression(object);
         }
     }

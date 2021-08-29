@@ -294,9 +294,9 @@ impl Parser {
 
     fn return_statement(&mut self, keyword: Token) -> Result<Stmt, Error> {
         let value = if !self.check(&TT::Semicolon) {
-            self.expression()?
+            Some(self.expression()?)
         } else {
-            Expr::Literal(Object::Nil)
+            None
         };
     
         self.expect(TT::Semicolon, "Expect ';' after return value.".to_string())?;
