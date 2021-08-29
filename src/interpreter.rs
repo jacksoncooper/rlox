@@ -16,6 +16,7 @@ pub struct Error {
     message: String,
 }
 
+#[derive(Debug)]
 pub enum Unwind {
     Error(Error),
     Return(Token, Object),
@@ -406,21 +407,22 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
 
     fn visit_class(&mut self, definition: &def::Class) -> Result<(), Unwind> {
         let def::Class(token, function_definitions) = definition;
-        let name = token.to_name().1;
+        let class_name = token.to_name().1;
 
-        env::define(&mut self.local, name, &Object::Nil);
+        env::define(&mut self.local, class_name, &Object::Nil);
 
         let mut methods = HashMap::new();
 
         for function_definition in function_definitions {
             let def::Function(function_name, ..) = function_definition;
+            let function_name = function_name.to_name().1;
 
             methods.insert(
-                function_name.to_name().1.to_string(),
+                function_name.to_string(),
                 call::Function::new(
                     function_definition.clone(),
                     env::copy(&self.local),
-                    name == "init"
+                    function_name == "init"
                 )
             );
         }
@@ -430,7 +432,7 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
             Rc::new(methods)
         ).erase();
 
-        env::define(&mut self.local, name, &Object::Callable(class));
+        env::define(&mut self.local, class_name, &Object::Callable(class));
 
         Ok(())
     }

@@ -8,17 +8,24 @@ use crate::statement::{self as stmt, Stmt};
 use crate::token::Token;
 
 #[derive(Clone, Copy, PartialEq)]
-enum Scope {
-    Initializer,
-    Function,
+enum Function {
     Global,
+    Function,
     Method,
+    Initializer,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Class {
+    Global,
+    Class,
 }
 
 pub struct Resolver {
     scopes: Vec<HashMap<String, bool>>,
     resolutions: HashMap<usize, usize>,
-    scope: Scope,
+    function_scope: Function,
+    class_scope: Class,
     stumbled: bool,
 }
 
@@ -27,7 +34,8 @@ impl Resolver {
         Resolver {
             scopes: Vec::new(),
             resolutions: HashMap::new(),
-            scope: Scope::Global,
+            function_scope: Function::Global,
+            class_scope: Class::Global,
             stumbled: false,
         }
     }
@@ -56,15 +64,15 @@ impl Resolver {
 
     fn resolve_function(
         &mut self, definition: &def::Function,
-        scope: Scope,
+        function_scope: Function,
     ) {
         let def::Function(_, parameters, body) = definition;
         let parameters: &Vec<Token> = parameters;
-        let enclosing = self.scope;
+        let enclosing_function = self.function_scope;
 
         self.begin_scope();
 
-        self.scope = scope;
+        self.function_scope = function_scope;
 
         for parameter in parameters {
             // TODO: It's not technically necessary to declare and define the
@@ -80,7 +88,7 @@ impl Resolver {
 
         self.end_scope();
 
-        self.scope = enclosing;
+        self.function_scope = enclosing_function;
     }
 
     fn resolve_local(&mut self, name: &Token) {
@@ -168,7 +176,7 @@ impl expr::Visitor<()> for Resolver {
     }
 
     fn visit_this(&mut self, this: &Token) {
-        if self.scope != Scope::Method && self.scope != Scope::Initializer {
+        if self.class_scope == Class::Global {
             self.stumble(this, "Can't use 'this' outside of a class.");
         }
 
@@ -200,6 +208,9 @@ impl stmt::Visitor<()> for Resolver {
     fn visit_class(&mut self, definition: &def::Class) {
         let def::Class(name, methods) = definition;
 
+        let enclosing_class = self.class_scope;
+        self.class_scope = Class::Class;
+
         self.declare(name);
         self.define(name);
 
@@ -211,13 +222,15 @@ impl stmt::Visitor<()> for Resolver {
             let def::Function(name, ..) = method;
 
             let scope = if name.to_name().1 == "init" {
-                Scope::Initializer
-            } else { Scope::Method };
+                Function::Initializer
+            } else { Function::Method };
 
             self.resolve_function(method, scope);
         }
 
         self.end_scope();
+
+        self.class_scope = enclosing_class;
     }
 
     fn visit_expression(&mut self, expression: &Expr) {
@@ -230,7 +243,7 @@ impl stmt::Visitor<()> for Resolver {
         self.declare(name);
         self.define(name);
 
-        self.resolve_function(definition, Scope::Function);
+        self.resolve_function(definition, Function::Function);
     }
 
     fn visit_if(
@@ -250,12 +263,12 @@ impl stmt::Visitor<()> for Resolver {
     }
 
     fn visit_return(&mut self, keyword: &Token, object: &Option<Expr>) {
-        if self.scope == Scope::Global {
+        if self.function_scope == Function::Global {
             self.stumble(keyword, "Can't return from top-level code.");
         }
         
         if let Some(object) = object {
-            if self.scope == Scope::Initializer{
+            if self.function_scope == Function::Initializer {
                 self.stumble(keyword, "Can't return a value from an initializer.");
             }
 

@@ -6,17 +6,17 @@ use crate::object::Object;
 
 pub type Environment = Rc<RefCell<Bindings>>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct Bindings {
     enclosing: Option<Environment>,
-    values: HashMap<String, Object>,
+    objects: HashMap<String, Object>,
 }
 
 pub fn new() -> Environment {
     Rc::new(RefCell::new(
         Bindings {
             enclosing: None,
-            values: HashMap::new(),
+            objects: HashMap::new(),
         }
     ))
 }
@@ -41,11 +41,11 @@ pub fn link(local: &mut Environment, enclosing: &Environment) {
 
 pub fn define(local: &mut Environment, name: &str, value: &Object) {
     let mut bindings = local.borrow_mut();
-    bindings.values.insert(name.to_string(), Object::clone(value));
+    bindings.objects.insert(name.to_string(), Object::clone(value));
 }
 
 pub fn get(local: &Environment, name: &str) -> Option<Object> {
-    match local.borrow().values.get(name) {
+    match local.borrow().objects.get(name) {
         Some(object) => Some(Object::clone(object)),
         None => match local.borrow().enclosing {
             Some(ref enclosing) => get(enclosing, name),
@@ -58,7 +58,7 @@ pub fn get_at(local: &Environment, distance: usize, name: &str) -> Object {
     let ancestor = ancestor(local, distance);
     let bindings = ancestor.borrow();
 
-    match bindings.values.get(name) {
+    match bindings.objects.get(name) {
         Some(object) => Object::clone(object),
 
         // A panic here indicates an error in the resolver.
@@ -69,8 +69,8 @@ pub fn get_at(local: &Environment, distance: usize, name: &str) -> Object {
 }
 
 pub fn assign(local: &mut Environment, name: &str, value: &Object) -> bool {
-    if local.borrow().values.contains_key(name) {
-        local.borrow_mut().values .insert(name.to_string(), Object::clone(value));
+    if local.borrow().objects.contains_key(name) {
+        local.borrow_mut().objects.insert(name.to_string(), Object::clone(value));
         true
     } else {
         match local.borrow_mut().enclosing {
@@ -83,7 +83,7 @@ pub fn assign(local: &mut Environment, name: &str, value: &Object) -> bool {
 pub fn assign_at(local: &Environment, distance: usize, name: &str, object: &Object) {
     let ancestor = ancestor(local, distance);
     let mut bindings = ancestor.borrow_mut();
-    bindings.values.insert(name.to_string(), Object::clone(object));
+    bindings.objects.insert(name.to_string(), Object::clone(object));
 }
 
 fn ancestor(local: &Environment, distance: usize) -> Environment {

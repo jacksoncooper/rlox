@@ -54,10 +54,10 @@ impl Class {
         let instance = Instance::new(self.clone());
 
         if let Some(initializer) = self.find_method("init") {
-            initializer.bind(&instance).call(interpreter, arguments)?;
+            initializer.bind(&instance).call(interpreter, arguments)
+        } else {
+            Ok(Object::Instance(instance))
         }
-
-        Ok(Object::Instance(instance))
     }
 
     pub fn find_method(&self, name: &str) -> Option<Function> {
@@ -137,15 +137,16 @@ impl Function {
 
         let result = interpreter.execute_block(body, env::copy(&local));
 
-        // The programmer returned with an explicit `return` keyword.
         match result {
+            // The programmer returned with an explicit `return` keyword.
             Err(int::Unwind::Return(_, object)) =>
                 if *is_initializer {
                     Ok(env::get_at(closure, 0, "this"))
                 } else { Ok(object) },
+            // Runtime error. Reconstruct its type to conform to Object.
             Err(error) => Err(error),
+            // Implicit return, either `nil` or `this` if initializer.
             Ok(()) =>
-                // Implicit return, either `nil` or `this` if initializer.
                 if *is_initializer {
                     Ok(env::get_at(closure, 0, "this"))
                 } else { Ok(Object::Nil) },
@@ -169,9 +170,14 @@ impl fmt::Display for Function {
 
 impl cmp::PartialEq for Function {
     fn eq(&self, other: &Function) -> bool {
-        let Function(def::Function(name, ..), ..) = self;
-        let Function(def::Function(other_name, ..), ..) = other;
+        let Function(def::Function(name, ..), closure, _) = self;
+        let Function(def::Function(other_name, ..), other_closure, _) = other;
+
         name.token_type == other_name.token_type
+            // This is a hack to make rlox behave like the reference Java
+            // implementation. Bound methods are equal if they share the
+            // same binding site, not the same object.
+            && Rc::ptr_eq(closure, other_closure)
     }
 }
 
