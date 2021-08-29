@@ -84,6 +84,7 @@ impl Resolver {
 
     fn resolve_local(&mut self, name: &Token) {
         let (identifier, name) = name.to_name();
+
         for (depth, scope) in self.scopes.iter().rev().enumerate() {
             if scope.contains_key(name) {
                 self.resolutions.insert(*identifier, depth);
@@ -109,18 +110,18 @@ impl Resolver {
                 );
                 self.stumbled = true;
             } else {
-                self.add_to_scope(name, false);
+                self.add_to_scope(name.to_name().1, false);
             }
         }
     }
 
     fn define(&mut self, name: &Token) {
-        self.add_to_scope(name, true)
+        self.add_to_scope(name.to_name().1, true)
     }
 
-    fn add_to_scope(&mut self, name: &Token, resolved: bool) {
+    fn add_to_scope(&mut self, name: &str, resolved: bool) {
         if let Some(scope) = self.scopes.last_mut() {
-            scope.insert(name.to_name().1.to_string(), resolved);
+            scope.insert(name.to_string(), resolved);
         }
     }
 }
@@ -164,6 +165,10 @@ impl expr::Visitor<()> for Resolver {
         self.resolve_expression(object);
     }
 
+    fn visit_this(&mut self, this: &Token) {
+        self.resolve_local(this);
+    }
+
     fn visit_unary(&mut self, _: &Token, right: &Expr) {
         self.resolve_expression(right);
     }
@@ -196,10 +201,15 @@ impl stmt::Visitor<()> for Resolver {
         self.declare(name);
         self.define(name);
 
+        self.begin_scope();
+
+        self.add_to_scope("this", true);
+
         for method in methods {
-            let scope = Scope::Method;
-            self.resolve_function(method, scope);
+            self.resolve_function(method, Scope::Method);
         }
+
+        self.end_scope();
     }
 
     fn visit_expression(&mut self, expression: &Expr) {

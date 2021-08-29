@@ -115,6 +115,13 @@ impl Function {
 
         Ok(Object::Nil)
     }
+
+    pub fn bind(&self, object: Object) -> Function {
+        let Function(definition, closure) = self;
+        let mut with_this = env::new_with_enclosing(&closure);
+        env::define(&mut with_this, "this", &object);
+        Function(definition.clone(), with_this)
+    }
 }
 
 impl fmt::Display for Function {

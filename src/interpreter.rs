@@ -351,7 +351,11 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
         self.evaluate(right)
     }
 
-    fn visit_set(&mut self, object: &Expr, token: &Token, value: &Expr) -> Result<Object, Unwind> {
+    fn visit_set(
+        &mut self,
+        object: &Expr, token: &Token,
+        value: &Expr
+    ) -> Result<Object, Unwind> {
         let object = self.evaluate(object)?;
 
         match object {
@@ -366,6 +370,10 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
                 "Only instances have fields.".to_string()
             )))
         }
+    }
+
+    fn visit_this(&mut self, this: &Token) -> Result<Object, Unwind> {
+        self.look_up_variable(this)
     }
 
     fn visit_unary(&mut self, operator: &Token, right: &Expr) -> Result<Object, Unwind> {

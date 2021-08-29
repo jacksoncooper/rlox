@@ -467,6 +467,10 @@ impl Parser {
             return Ok(Expr::Grouping(Box::new(group)));
         }
 
+        if let TT::This(..) = next.token_type {
+            return Ok(Expr::This(self.advance()));
+        }
+
         Err(Error::new(
             Token::clone(next),
             "Expect expression.".to_string()

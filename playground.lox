@@ -1,23 +1,10 @@
-class Bagel {
-    eat() {
-        print "*crunch* *crunch*";
+class Cake {
+    taste() {
+        var adjective = "delicious";
+        print "The " + this.flavor + " cake is " + adjective + ".";
     }
 }
 
-fun read_watch() {
-    print clock();
-}
-
-var Toaster = Bagel;
-
-var sesame = Toaster();
-
-sesame.seeds = 143;
-
-print sesame.seeds;
-
-sesame.pocket_watch = read_watch;
-
-sesame.pocket_watch();
-
-sesame.eat();
+var cake = Cake();
+cake.flavor = "German chocolate";
+cake.taste();

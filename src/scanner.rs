@@ -198,19 +198,20 @@ impl Scanner {
             "print"  => TT::Print,
             "return" => TT::Return,
             "super"  => TT::Super,
-            "this"   => TT::This,
+            "this"   => TT::This(self.new_key()),
             "true"   => TT::True,
             "var"    => TT::Var,
             "while"  => TT::While,
-            _        => {
-                // Each identifier has a unique `usize` key for resolution.
-                let identifier = TT::Identifier(self.identifier_key, identifier);
-                self.identifier_key += 1;
-                identifier
-            }
+            _        => TT::Identifier(self.new_key(), identifier),
         };
 
         self.add_token(token);
+    }
+
+    fn new_key(&mut self) -> usize {
+        let key = self.identifier_key;
+        self.identifier_key += 1;
+        key
     }
 
     fn collect_lexeme(&self, start: usize, end: usize) -> String {

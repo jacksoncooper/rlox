@@ -33,7 +33,9 @@ impl Instance {
     pub fn get(&self, name: &str) -> Option<Object> {
         self.fields.borrow().get(name).map_or_else(
             || self.class.find_method(name).map(
-                |function| Object::Callable(function.erase())
+                |function| Object::Callable(
+                    function.bind(Object::Instance(self.clone())).erase()
+                )
             ),
             |field| Some(Object::clone(field))
         )
