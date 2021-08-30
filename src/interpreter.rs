@@ -367,6 +367,33 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
         }
     }
 
+    fn visit_super(&mut self, keyword: &Token, method: &Token) -> Result<Object, Unwind> {
+        if let Some(&distance) = self.resolutions.get(keyword.to_name().0) {
+            let parent = env::get_at(&self.local, distance, "super");
+            let this = env::get_at(&self.local, distance - 1, "this");
+
+            let parent = if let Object::Callable(call::Callable::Class(class)) = parent { class } else {
+                // A panic here indicates an error in the interpreter.
+                panic!("failed to narrow parent class")
+            };
+
+            let this = if let Object::Instance(object) = this { object } else {
+                // A panic here indicates an error in the interpreter.
+                panic!("failed to narrow this instance")
+            };
+
+            return parent.find_method(method.to_name().1).map_or_else(
+                || Err(Unwind::Error(Error::new(method,
+                    format!("Undefined property '{}'.", method.to_name().1)
+                ))),
+                |method| Ok(Object::Callable(method.bind(&this).erase()))
+            )
+        }
+
+        // A panic here indicates an error in the resolver.
+        panic!("failed to resolve super")
+    }
+
     fn visit_this(&mut self, this: &Token) -> Result<Object, Unwind> {
         self.look_up_variable(this)
     }
@@ -406,10 +433,34 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
     }
 
     fn visit_class(&mut self, definition: &def::Class) -> Result<(), Unwind> {
-        let def::Class(token, function_definitions) = definition;
-        let class_name = token.to_name().1;
+        let def::Class(name, parent_name, function_definitions) = definition;
+        let class_name = name.to_name().1;
+
+        let parent = if let Some(parent_name) = parent_name {
+            // Hoist the parent identifier to a variable and evaluate it.
+            let object = self.evaluate(
+                &Expr::Variable(Token::clone(parent_name))
+            )?;
+
+            if let Object::Callable(call::Callable::Class(class)) = object {
+                Some(Rc::new(class))
+            } else {
+                return Err(Unwind::Error(Error::new(
+                    parent_name, "Superclass must be a class.".to_string()
+                )));
+            }
+        } else { None };
 
         env::define(&mut self.local, class_name, &Object::Nil);
+
+        let above_super = env::copy(&self.local);
+
+        if let Some(ref parent) = parent {
+            let mut with_super = env::new();
+            let object = Object::Callable(parent.as_ref().clone().erase());
+            env::define(&mut with_super, "super", &object);
+            self.local = with_super;
+        }
 
         let mut methods = HashMap::new();
 
@@ -427,8 +478,11 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
             );
         }
 
+        if parent.is_some() { self.local = above_super; }
+
         let class = call::Class::new(
-            token.clone(),
+            name.clone(),
+            parent,
             Rc::new(methods)
         ).erase();
 

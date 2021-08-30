@@ -34,7 +34,7 @@ type Tokens = std::iter::Peekable<std::vec::IntoIter<Token>>;
 
 pub struct Parser {
     tokens: Tokens,
-    statements: Option<Vec<Stmt>>,
+    statements: Vec<Stmt>,
     stumbled: bool,
 }
 
@@ -42,60 +42,58 @@ impl Parser {
     pub fn new(tokens: Vec<Token>) -> Parser {
         Parser {
             tokens: tokens.into_iter().peekable(),
-            statements: None,
+            statements: Vec::new(),
             stumbled: false,
         }
     }
 
     pub fn parse(&mut self) {
-        let mut had_error: bool = false;
-        let mut statements: Vec<Stmt> = Vec::new();
-
         while !self.is_at_end() {
-            match self.declaration() {
-                Ok(declaration) =>
-                    statements.push(declaration),
-                Err(panic) => {
-                    error::parse_error(&panic.token, &panic.message);
-                    had_error = true;
-                    self.synchronize();
-                }
+            if let Some(declaration) = self.declaration() {
+                self.statements.push(declaration);
             }
-        }
-
-        if !had_error && !self.stumbled {
-            self.statements = Some(statements);
         }
     }
 
     pub fn consume(self) -> Result<Vec<Stmt>, error::LoxError> {
-        match self.statements {
-            Some(statements) => Ok(statements),
-            None => Err(error::LoxError::Parse)
+        if !self.stumbled {
+            Ok(self.statements)
+        } else {
+            Err(error::LoxError::Parse)
         }
     }
 
-    fn declaration(&mut self) -> Result<Stmt, Error> {
-        if self.advance_if(&[TT::Class]).is_some() {
-            return self.class_declaration();
-        }
+    fn declaration(&mut self) -> Option<Stmt> {
+        let result = if self.advance_if(&[TT::Class]).is_some() {
+            self.class_declaration()
+        } else if self.advance_if(&[TT::Fun]).is_some() {
+            self.function("function").and_then(|stmt| Ok(Stmt::Function(stmt)))
+        } else if self.advance_if(&[TT::Var]).is_some() {
+            self.variable_declaration()
+        } else {
+            self.statement()
+        };
 
-        if self.advance_if(&[TT::Fun]).is_some() {
-            return Ok(Stmt::Function(self.function("function")?));
+        match result {
+            Ok(declaration) => Some(declaration),
+            Err(panic) => {
+                self.stumbled = true;
+                error::parse_error(&panic.token, &panic.message);
+                self.synchronize();
+                None
+            }
         }
-
-        if self.advance_if(&[TT::Var]).is_some() {
-            return self.variable_declaration();
-        }
-
-        self.statement()
     }
 
     fn class_declaration(&mut self) -> Result<Stmt, Error> {
         let name = self.expect_identifier("Expect class name.".to_string())?;
+       
+        let parent = if self.advance_if(&[TT::Less]).is_some() {
+            Some(self.expect_identifier("Expect superclass name.".to_string())?)
+        } else { None };
 
         self.expect(TT::LeftBrace, "Expect '{' before class body.".to_string())?;
-        
+
         let mut methods = Vec::new();
         while !self.check(&TT::RightBrace) && !self.is_at_end() {
             methods.push(self.function("method")?);
@@ -103,7 +101,7 @@ impl Parser {
 
         self.expect(TT::RightBrace, "Expect '}' after class body.".to_string())?;
 
-        Ok(Stmt::Class(def::Class(Rc::new(name), methods)))
+        Ok(Stmt::Class(def::Class(Rc::new(name), parent.map(Rc::new), methods)))
     }
 
     fn function(&mut self, kind: &str) -> Result<def::Function, Error> {
@@ -278,7 +276,9 @@ impl Parser {
         let mut statements: Vec<Stmt> = Vec::new();
 
         while !self.check(&TT::RightBrace) && !self.is_at_end() {
-            statements.push(self.declaration()?);
+            if let Some(declaration) = self.declaration() {
+                statements.push(declaration);
+            }
         }
 
         self.expect(TT::RightBrace, "Expect '}' after block.".to_string())?;
@@ -456,19 +456,20 @@ impl Parser {
 
         if let TT::LeftParen = next.token_type {
             self.advance();
-
             let group: Expr = self.expression()?;
-
-            self.expect(
-                TT::RightParen,
-                "Expect ')' after expression.".to_string()
-            )?;
-
+            self.expect(TT::RightParen, "Expect ')' after expression.".to_string())?;
             return Ok(Expr::Grouping(Box::new(group)));
         }
 
         if let TT::This(..) = next.token_type {
             return Ok(Expr::This(self.advance()));
+        }
+
+        if let TT::Super(..) = next.token_type {
+            let keyword = self.advance();
+            self.expect(TT::Dot, "Expect '.' after 'super'.".to_string())?;
+            let method = self.expect_identifier("Expect superclass method name.".to_string())?;
+            return Ok(Expr::Super(keyword, method));
         }
 
         Err(Error::new(
@@ -560,9 +561,6 @@ impl Parser {
     }
 
     fn synchronize(&mut self) {
-        // Discard the Token that caused the panic.
-        if !self.is_at_end() { self.advance(); }
-
         while !self.is_at_end() {
             // If the current Token is a semicolon, the next Token starts a new
             // statement.

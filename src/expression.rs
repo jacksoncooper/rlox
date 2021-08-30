@@ -11,6 +11,7 @@ pub enum Expr {
     Literal(Object),
     Logical(Box<Expr>, Token, Box<Expr>),
     Set(Box<Expr>, Token, Box<Expr>),
+    Super(Token, Token),
     This(Token),
     Unary(Token, Box<Expr>),
     Variable(Token),
@@ -25,6 +26,7 @@ pub trait Visitor<T> {
     fn visit_literal(&mut self, object: &Object) -> T;
     fn visit_logical(&mut self, left: &Expr, operator: &Token, right: &Expr) -> T;
     fn visit_set(&mut self, object: &Expr, name: &Token, value: &Expr) -> T;
+    fn visit_super(&mut self, keyword: &Token, method: &Token) -> T;
     fn visit_this(&mut self, object: &Token) -> T;
     fn visit_unary(&mut self, operator: &Token, right: &Expr) -> T;
     fn visit_variable(&mut self, name: &Token) -> T;
@@ -49,6 +51,8 @@ impl Expr {
                 visitor.visit_logical(left, operator, right),
             Expr::Set(object, name, value) =>
                 visitor.visit_set(object, name, value),
+            Expr::Super(keyword, method) =>
+                visitor.visit_super(keyword, method),
             Expr::This(object) =>
                 visitor.visit_this(object),
             Expr::Unary(operator, right) =>

@@ -1,29 +1,14 @@
-class Cake {
-    init(tastes) {
-        this.tastes = tastes;
-    }
-
-    taste() {
-        print "The " + this.flavor + " cake is " + this.adjective + ".";
-        this.tastes = this.tastes + 1;
-    }
-
-    more() {
-        this.adjective = "very " + this.adjective;
-        this.taste();
+class Doughnut {
+    cook() {
+        print "Fry until golden brown.";
     }
 }
 
-var cake = Cake(1);
+class BostonCream < Doughnut {
+    cook() {
+        super.cook();
+        print "Pipe full of custard and coat with chocolate.";
+    }
+}
 
-cake.adjective = "delicious";
-cake.flavor = "German chocolate";
-cake.tastes = 0;
-
-cake.taste();
-
-cake.more();
-cake.more();
-cake.more();
-
-print cake.tastes;
+BostonCream().cook();

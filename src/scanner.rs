@@ -197,7 +197,7 @@ impl Scanner {
             "or"     => TT::Or,
             "print"  => TT::Print,
             "return" => TT::Return,
-            "super"  => TT::Super,
+            "super"  => TT::Super(self.new_key()),
             "this"   => TT::This(self.new_key()),
             "true"   => TT::True,
             "var"    => TT::Var,

@@ -16,6 +16,7 @@ impl Token {
         match self.token_type {
             TT::Identifier(ref identifier, ref name) => (identifier, name),
             TT::This(ref identifier) => (identifier, "this"),
+            TT::Super(ref identifier) => (identifier, "super"),
             // A panic here represents a failure in the parser.
             _ => panic!("token is not an identifier")
         }

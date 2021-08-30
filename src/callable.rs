@@ -20,7 +20,7 @@ pub mod definitions {
     use crate::token::Token;
 
     #[derive(Clone, Debug)]
-    pub struct Class(pub Rc<Token>, pub Vec<Function>);
+    pub struct Class(pub Rc<Token>, pub Option<Rc<Token>>, pub Vec<Function>);
 
     #[derive(Clone, Debug)]
     pub struct Function(pub Rc<Token>, pub Rc<Vec<Token>>, pub Rc<Vec<Stmt>>);
@@ -29,11 +29,15 @@ pub mod definitions {
 type Methods = HashMap<String, Function>;
 
 #[derive(Clone, Debug)]
-pub struct Class(Rc<Token>, Rc<Methods>);
+pub struct Class(Rc<Token>, Option<Rc<Class>>, Rc<Methods>);
 
 impl Class {
-    pub fn new(name: Rc<Token>, methods: Rc<Methods>) -> Class {
-        Class(name, methods)
+    pub fn new(
+        name: Rc<Token>,
+        parent: Option<Rc<Class>>,
+        methods: Rc<Methods>
+    ) -> Class {
+        Class(name, parent, methods)
     }
 
     pub fn erase(self) -> Callable {
@@ -61,14 +65,18 @@ impl Class {
     }
 
     pub fn find_method(&self, name: &str) -> Option<Function> {
-        let Class(_, methods) = self;
-        methods.get(name).map(Function::clone)
+        let Class(_, parent, methods) = self;
+
+        methods.get(name).map_or_else(
+            || parent.as_ref().and_then(|parent| parent.find_method(name)),
+            |method| Some(method.clone())
+        )
     }
 }
 
 impl fmt::Display for Class {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Class(name, _) = self;
+        let Class(name, ..) = self;
         write!(f, "{}", name.to_name().1)
     }
 }

@@ -19,6 +19,7 @@ enum Function {
 enum Class {
     Global,
     Class,
+    Subclass,
 }
 
 pub struct Resolver {
@@ -175,6 +176,16 @@ impl expr::Visitor<()> for Resolver {
         self.resolve_expression(object);
     }
 
+    fn visit_super(&mut self, keyword: &Token, _: &Token) {
+        if self.class_scope == Class::Global {
+            self.stumble(keyword, "Can't use 'super' outside of a class.");
+        } else if self.class_scope == Class::Class {
+            self.stumble(keyword, "Can't use 'super' in a class with no superclass.");
+        }
+
+        self.resolve_local(keyword);
+    }
+
     fn visit_this(&mut self, this: &Token) {
         if self.class_scope == Class::Global {
             self.stumble(this, "Can't use 'this' outside of a class.");
@@ -192,9 +203,9 @@ impl expr::Visitor<()> for Resolver {
             if let Some(false) = scope.get(name.to_name().1) {
                 self.stumble(name, "Can't read local variable in its own initializer.");
             }
-        }
 
-        self.resolve_local(name);
+            self.resolve_local(name);
+        }
     }
 }
 
@@ -206,13 +217,28 @@ impl stmt::Visitor<()> for Resolver {
     }
 
     fn visit_class(&mut self, definition: &def::Class) {
-        let def::Class(name, methods) = definition;
+        let def::Class(name, parent, methods) = definition;
 
         let enclosing_class = self.class_scope;
         self.class_scope = Class::Class;
 
         self.declare(name);
         self.define(name);
+
+        if let Some(parent) = parent {
+            self.class_scope = Class::Subclass;
+
+            if name.to_name().1 == parent.to_name().1 {
+                self.stumble(parent, "A class can't inherit from itself.");
+            }
+
+            self.resolve_local(parent);
+        }
+
+        if parent.is_some() {
+            self.begin_scope();
+            self.add_to_scope("super", true);
+        }
 
         self.begin_scope();
 
@@ -229,6 +255,8 @@ impl stmt::Visitor<()> for Resolver {
         }
 
         self.end_scope();
+
+        if parent.is_some() { self.end_scope(); }
 
         self.class_scope = enclosing_class;
     }
