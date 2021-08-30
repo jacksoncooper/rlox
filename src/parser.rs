@@ -67,7 +67,7 @@ impl Parser {
         let result = if self.advance_if(&[TT::Class]).is_some() {
             self.class_declaration()
         } else if self.advance_if(&[TT::Fun]).is_some() {
-            self.function("function").and_then(|stmt| Ok(Stmt::Function(stmt)))
+            self.function("function").map(Stmt::Function)
         } else if self.advance_if(&[TT::Var]).is_some() {
             self.variable_declaration()
         } else {
