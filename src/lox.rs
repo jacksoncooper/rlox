@@ -26,7 +26,7 @@ fn lox() -> Result<(), i32> {
         0 => run_prompt(),
         1 => run_file(&args[0]),
         _ => {
-            println!("usage: jlox [script]");
+            println!("usage: rlox [script]");
             Err(64)
         }
     }

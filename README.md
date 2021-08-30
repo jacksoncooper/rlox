@@ -1,7 +1,7 @@
-`rlox-tree-walk` is a tree-walk interpreter for Bob's Nystrom's Lox programming
-language from the book _Crafting Interpreters_. It's my first Rust project, and
-I was following the Java implementation, so my implementation is not
-particularly clean or idiomatic. Thank you Bob Nystrom for the comfort food.
+`rlox` is a tree-walk interpreter for Bob's Nystrom's Lox programming language
+from the book _Crafting Interpreters_. It's my first Rust project, and I was
+following the Java implementation, so my implementation is not particularly
+clean or idiomatic. Thank you Bob Nystrom for the comfort food.
 
 ```lox
 class Bagel {
