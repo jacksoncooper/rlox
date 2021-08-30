@@ -573,6 +573,11 @@ impl Parser {
             // Otherwise the Token may be a keyword which marks the start of a
             // statement.
 
+            // TODO: Bob's implementation advances over the token that caused
+            // the panic and will not synch on the following keywords out of
+            // the gate. Mine does. I can't advance on the EOF token without
+            // exhausting the token iterator and causing a panic.
+
             if let TT::Class  | TT::For | TT::Fun   | TT::If | TT::Print
                 |  TT::Return | TT::Var | TT::While
                 = self.peek().token_type { return; }
