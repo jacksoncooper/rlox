@@ -195,7 +195,7 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
             TT::Minus =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
-                        Ok(Object::Number(Rc::new(*left - *right))),
+                        Ok(Object::Number(left - right)),
                 _ =>
                     Err(Unwind::Error(Error::new(
                         operator,
@@ -205,12 +205,12 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
             TT::Plus =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
-                        Ok(Object::Number(Rc::new(*left + *right))),
+                        Ok(Object::Number(left + right)),
                     (Object::String(left), Object::String(right)) => {
                         let mut concatenation = String::new();
                         concatenation.push_str(&left);
                         concatenation.push_str(&right);
-                        Ok(Object::String(Rc::new(concatenation)))
+                        Ok(Object::String(concatenation))
                     },
                     _ =>
                         Err(Unwind::Error(Error::new(
@@ -221,8 +221,8 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
             TT::Slash =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
-                        if *right != 0 as f64 {
-                            Ok(Object::Number(Rc::new(*left / *right)))
+                        if right != 0 as f64 {
+                            Ok(Object::Number(left / right))
                         } else {
                             Err(Unwind::Error(Error::new(
                                 operator,
@@ -238,7 +238,7 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
             TT::Star =>
                 match (left, right) {
                     (Object::Number(left), Object::Number(right)) =>
-                        Ok(Object::Number(Rc::new(*left * *right))),
+                        Ok(Object::Number(left * right)),
                     _ =>
                         Err(Unwind::Error(Error::new(
                             operator,
@@ -406,7 +406,7 @@ impl expr::Visitor<Result<Object, Unwind>> for Interpreter {
                 Ok(Object::Boolean(!is_truthy(&right))),
             TT::Minus =>
                 match right {
-                    Object::Number(float) => Ok(Object::Number(Rc::new(-*float))),
+                    Object::Number(float) => Ok(Object::Number(-float)),
                     _ =>
                         Err(Unwind::Error(Error::new(
                             operator,

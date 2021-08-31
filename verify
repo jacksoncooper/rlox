@@ -4,6 +4,6 @@ cargo install --path .
 
 harness=/Users/jackson/Dropbox/projects/craftinginterpreters/tool/bin/test.dart
 interpreter=chap13_inheritance
-my_lox=/Users/jackson/.cargo/bin/rlox
+my_lox=rlox
 
 dart $harness $interpreter --interpreter $my_lox

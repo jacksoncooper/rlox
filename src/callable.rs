@@ -222,7 +222,7 @@ fn call_clock() -> Result<Object, int::Unwind> {
 
     Ok(now.map_or_else(
         |_| Object::Nil,
-        |t| Object::Number(Rc::new(t.as_secs_f64()))
+        |t| Object::Number(t.as_secs_f64())
     ))
 }
 
