@@ -1,9 +1,10 @@
 use std::cmp;
-use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fmt;
 use std::rc::Rc;
 use std::time::SystemTime;
+
+use rustc_hash::FxHashMap;
 
 use crate::environment as env;
 use crate::instance::Instance;
@@ -26,7 +27,7 @@ pub mod definitions {
     pub struct Function(pub Rc<Token>, pub Rc<Vec<Token>>, pub Rc<Vec<Stmt>>);
 }
 
-type Methods = HashMap<String, Function>;
+type Methods = FxHashMap<String, Function>;
 
 #[derive(Clone, Debug)]
 pub struct Class(Rc<Token>, Option<Rc<Class>>, Rc<Methods>);

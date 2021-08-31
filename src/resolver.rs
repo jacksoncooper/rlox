@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 use crate::callable::definitions as def;
 use crate::error;
@@ -23,8 +23,8 @@ enum Class {
 }
 
 pub struct Resolver {
-    scopes: Vec<HashMap<String, bool>>,
-    resolutions: HashMap<usize, usize>,
+    scopes: Vec<FxHashMap<String, bool>>,
+    resolutions: FxHashMap<usize, usize>,
     function_scope: Function,
     class_scope: Class,
     stumbled: bool,
@@ -34,14 +34,14 @@ impl Resolver {
     pub fn new() -> Resolver {
         Resolver {
             scopes: Vec::new(),
-            resolutions: HashMap::new(),
+            resolutions: FxHashMap::default(),
             function_scope: Function::Global,
             class_scope: Class::Global,
             stumbled: false,
         }
     }
 
-    pub fn consume(self) -> Result<HashMap<usize, usize>, error::LoxError> {
+    pub fn consume(self) -> Result<FxHashMap<usize, usize>, error::LoxError> {
         if self.stumbled {
             Err(error::LoxError::Resolve)
         } else {
@@ -104,7 +104,7 @@ impl Resolver {
     }
 
     fn begin_scope(&mut self) {
-        self.scopes.push(HashMap::new());
+        self.scopes.push(FxHashMap::default());
     }
 
     fn end_scope(&mut self) {

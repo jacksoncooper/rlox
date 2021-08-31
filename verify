@@ -2,7 +2,7 @@
 
 cargo install --path .
 
-harness=/Users/jackson/Dropbox/projects/craftinginterpreters/tool/bin/test.dart
+harness=${HOME}/Dropbox/projects/craftinginterpreters/tool/bin/test.dart
 interpreter=chap13_inheritance
 my_lox=rlox
 

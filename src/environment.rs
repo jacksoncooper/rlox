@@ -1,6 +1,7 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
+
+use rustc_hash::FxHashMap;
 
 use crate::object::Object;
 
@@ -9,14 +10,14 @@ pub type Environment = Rc<RefCell<Bindings>>;
 #[derive(Debug)]
 pub struct Bindings {
     enclosing: Option<Environment>,
-    objects: HashMap<String, Object>,
+    objects: FxHashMap<String, Object>,
 }
 
 pub fn new() -> Environment {
     Rc::new(RefCell::new(
         Bindings {
             enclosing: None,
-            objects: HashMap::new(),
+            objects: FxHashMap::default(),
         }
     ))
 }

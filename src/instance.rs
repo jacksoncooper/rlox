@@ -1,12 +1,13 @@
 use std::fmt;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
+
+use rustc_hash::FxHashMap;
 
 use crate::callable::Class;
 use crate::object::Object;
 
-type Fields = HashMap<String, Object>;
+type Fields = FxHashMap<String, Object>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Instance {
@@ -18,7 +19,7 @@ impl Instance {
     pub fn new(class: Class) -> Instance {
         Instance {
             class,
-            fields: Rc::new(RefCell::new(HashMap::new()))
+            fields: Rc::new(RefCell::new(FxHashMap::default()))
         }
     }
 }

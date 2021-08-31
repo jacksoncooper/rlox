@@ -1,5 +1,6 @@
 use std::rc::Rc;
-use std::collections::HashMap;
+
+use rustc_hash::FxHashMap;
 
 use crate::callable::{self as call, definitions as def};
 use crate::environment as env;
@@ -31,11 +32,11 @@ impl Error {
 pub struct Interpreter {
     global: env::Environment,
     local: env::Environment,
-    resolutions: HashMap<usize, usize>,
+    resolutions: FxHashMap<usize, usize>,
 }
 
 impl Interpreter {
-    pub fn new(resolutions: HashMap<usize, usize>) -> Interpreter {
+    pub fn new(resolutions: FxHashMap<usize, usize>) -> Interpreter {
         let mut global = env::new();
 
         env::define(
@@ -462,7 +463,7 @@ impl stmt::Visitor<Result<(), Unwind>> for Interpreter {
             self.local = with_super;
         }
 
-        let mut methods = HashMap::new();
+        let mut methods = FxHashMap::default();
 
         for function_definition in function_definitions {
             let def::Function(function_name, ..) = function_definition;
