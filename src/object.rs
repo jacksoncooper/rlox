@@ -4,7 +4,6 @@ use crate::callable::Callable;
 use crate::instance::Instance;
 
 #[derive(Clone, Debug, PartialEq)]
-
 pub enum Object {
     Boolean(bool),
     Callable(Callable),
