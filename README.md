@@ -10,7 +10,7 @@ about _three times_ slower using Bob's benchmarks. I don't know what the JVM is
 up to when it allocates memory, goodness. `perf` shows the overhead is in:
 
 - `_int_malloc()` Heap allocation is expensive. 5.39 percent.
-- `look_up_variable()`: Walking the environment chains is expensive, even with
+- `look_up_variable()` Walking the environment chains is expensive, even with
    the resolver. 5.25 percent.
 - `hashbrown::map::make_hash` Hashing identifiers is expensive. 5.07 percent.
 - `<std::collections::hash::map::DefaultHasher as core::hash::Hasher>::write`
