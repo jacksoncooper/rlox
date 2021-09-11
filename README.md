@@ -56,15 +56,15 @@ my_breakfast.munch();
 
 - [ ] There's no reason for instances and environments to own their keys except
   that the borrow checker is a scary monster.
-
-Performance is pretty abysmal compared to the reference implementation `jlox`,
-about _three times_ slower using Bob's benchmarks. I don't know what the JVM is
-up to when it allocates memory, goodness. `perf` shows the overhead is in:
-
-- `_int_malloc()` Heap allocation is expensive. 5.39 percent.
-- `look_up_variable()`: Walking the environment chains is expensive, even with
-   the resolver. 5.25 percent.
-- `hashbrown::map::make_hash` Hashing identifiers is expensive. 5.07 percent.
-- `<std::collections::hash::map::DefaultHasher as core::hash::Hasher>::write`
-   Hashing is still expensive? This supplies the state for the hashing function,
-   apparently. 6.60 percent.
+- [ ] Performance is pretty abysmal compared to the reference implementation
+  `jlox`, about _two times_ slower using Bob's benchmarks. I don't know what
+  the JVM is up to when it allocates memory. `perf` shows the
+  overhead is in:
+  - [ ] `_int_malloc`: Heap allocation is expensive. 5.39 percent.
+  - [ ] `look_up_variable`: Walking the environment chains is expensive, even
+    with the resolver. 5.25 percent.
+  - [x] `hashbrown::map::make_hash`: Hashing identifiers is expensive. 5.07
+    percent.
+  - [x] `<std::collections::hash::map::DefaultHasher as
+    core::hash::Hasher>::write`: Hashing is still expensive? This supplies the
+    state for the hashing function, apparently. 6.60 percent.
